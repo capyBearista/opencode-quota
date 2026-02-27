@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  expectAttemptedWithErrorLabel,
+  expectAttemptedWithNoErrors,
+  expectNotAttempted,
+} from "./helpers/provider-assertions.js";
 import { firmwareProvider } from "../src/providers/firmware.js";
 
 vi.mock("../src/lib/firmware.js", () => ({
@@ -13,8 +18,7 @@ describe("firmware provider", () => {
     (queryFirmwareQuota as any).mockResolvedValueOnce(null);
 
     const out = await firmwareProvider.fetch({} as any);
-    expect(out.attempted).toBe(false);
-    expect(out.entries).toEqual([]);
+    expectNotAttempted(out);
   });
 
   it("maps success into a value toast entry", async () => {
@@ -26,7 +30,7 @@ describe("firmware provider", () => {
     });
 
     const out = await firmwareProvider.fetch({ config: { toastStyle: "classic" } } as any);
-    expect(out.attempted).toBe(true);
+    expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
         kind: "value",
@@ -45,7 +49,6 @@ describe("firmware provider", () => {
     });
 
     const out = await firmwareProvider.fetch({} as any);
-    expect(out.attempted).toBe(true);
-    expect(out.errors[0].label).toBe("Firmware");
+    expectAttemptedWithErrorLabel(out, "Firmware");
   });
 });

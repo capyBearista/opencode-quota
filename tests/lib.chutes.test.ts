@@ -24,14 +24,9 @@ describe("queryChutesQuota", () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    vi.clearAllMocks();
-
     process.chdir(originalCwd);
     process.env = originalEnv;
     rmSync(tempDir, { recursive: true, force: true });
-
-    vi.unstubAllGlobals();
   });
 
   it("returns null when not configured", async () => {

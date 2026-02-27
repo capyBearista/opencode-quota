@@ -1,13 +1,9 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryGoogleQuota } from "../src/lib/google.js";
 
 vi.mock("fs/promises", () => ({
   readFile: vi.fn(),
-}));
-
-vi.mock("../src/lib/opencode-auth.js", () => ({
-  readAuthFile: vi.fn(),
 }));
 
 vi.mock("../src/lib/google-token-cache.js", () => ({
@@ -31,21 +27,16 @@ vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
   }),
 }));
 
-describe("google approach C", () => {
+describe("google antigravity multi-account refresh", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("falls back to antigravity refresh when OpenCode token expired", async () => {
+  it("refreshes account access token on cache miss and fetches quota", async () => {
     const { readFile } = await import("fs/promises");
-    const { readAuthFile } = await import("../src/lib/opencode-auth.js");
 
-    // antigravity-accounts.json exists
+    // antigravity-accounts.json exists with one account.
     (readFile as any).mockResolvedValueOnce(
       JSON.stringify({
         version: 1,
@@ -61,13 +52,7 @@ describe("google approach C", () => {
       }),
     );
 
-    // google token exists but expired (no longer used for multi-account quota,
-    // but keep this mocked so the test remains backwards compatible)
-    (readAuthFile as any).mockResolvedValueOnce({
-      google: { type: "oauth", access: "atok", expires: Date.now() - 1 },
-    });
-
-    // Mock fetch to simulate successful token refresh and quota fetch
+    // First refresh token endpoint call, then quota endpoint call.
     const fetchSpy = vi.fn();
 
     // First call: token refresh
@@ -93,18 +78,14 @@ describe("google approach C", () => {
 
     const out = await queryGoogleQuota(["CLAUDE"] as any);
 
-    // Should have called fetch for token refresh (fallback path)
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(fetchSpy.mock.calls[0][0]).toBe("https://oauth2.googleapis.com/token");
 
-    // Should return successful quota data
     expect(out).not.toBeNull();
     expect(out!.success).toBe(true);
     if (out!.success) {
       expect(out!.models.length).toBe(1);
       expect(out!.models[0].percentRemaining).toBe(75);
     }
-
-    vi.unstubAllGlobals();
   });
 });

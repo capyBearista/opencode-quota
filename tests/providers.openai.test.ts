@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  expectAttemptedWithErrorLabel,
+  expectAttemptedWithNoErrors,
+  expectNotAttempted,
+} from "./helpers/provider-assertions.js";
 import { openaiProvider } from "../src/providers/openai.js";
 
 vi.mock("../src/lib/openai.js", () => ({
@@ -12,8 +17,7 @@ describe("openai provider", () => {
     (queryOpenAIQuota as any).mockResolvedValueOnce(null);
 
     const out = await openaiProvider.fetch({} as any);
-    expect(out.attempted).toBe(false);
-    expect(out.entries).toEqual([]);
+    expectNotAttempted(out);
   });
 
   it("maps success into a single toast entry (classic)", async () => {
@@ -27,7 +31,7 @@ describe("openai provider", () => {
     });
 
     const out = await openaiProvider.fetch({ config: {} } as any);
-    expect(out.attempted).toBe(true);
+    expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
         name: "OpenAI (Pro)",
@@ -45,7 +49,6 @@ describe("openai provider", () => {
     });
 
     const out = await openaiProvider.fetch({} as any);
-    expect(out.attempted).toBe(true);
-    expect(out.errors[0].label).toBe("OpenAI");
+    expectAttemptedWithErrorLabel(out, "OpenAI");
   });
 });

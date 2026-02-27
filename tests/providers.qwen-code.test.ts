@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { expectAttemptedWithNoErrors, expectNotAttempted } from "./helpers/provider-assertions.js";
 import { qwenCodeProvider } from "../src/providers/qwen-code.js";
 
 vi.mock("../src/lib/opencode-auth.js", () => ({
@@ -17,8 +18,7 @@ describe("qwen-code provider", () => {
     (readAuthFileCached as any).mockResolvedValueOnce({});
 
     const out = await qwenCodeProvider.fetch({ config: {} } as any);
-    expect(out.attempted).toBe(false);
-    expect(out.entries).toEqual([]);
+    expectNotAttempted(out);
   });
 
   it("maps local quota into grouped entries", async () => {
@@ -46,8 +46,7 @@ describe("qwen-code provider", () => {
 
     const out = await qwenCodeProvider.fetch({ config: { toastStyle: "grouped" } } as any);
 
-    expect(out.attempted).toBe(true);
-    expect(out.errors).toEqual([]);
+    expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(2);
     expect(out.entries[0]).toMatchObject({
       name: "Qwen Daily",

@@ -225,6 +225,16 @@ All options go under `experimental.quotaToast` in `opencode.json` or `opencode.j
 | `googleModels`      | `["CLAUDE"]` | Google models: `CLAUDE`, `G3PRO`, `G3FLASH`, `G3IMAGE`                                               |
 | `debug`             | `false`      | Show debug info in toasts (and a debug-only toast when otherwise suppressed)                         |
 
+## Development
+
+```sh
+npm install
+npm run typecheck
+npm test
+npm run test:watch
+npm run build
+```
+
 ## Troubleshooting
 
 Toast not appearing? Run `/quota_status` to check config, provider availability, and whether `opencode.db` is detected.

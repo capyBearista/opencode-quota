@@ -39,8 +39,6 @@ describe("queryCopilotQuota", () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.useRealTimers();
     process.env = realEnv;
   });
 

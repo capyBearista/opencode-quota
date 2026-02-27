@@ -17,7 +17,6 @@ describe("cache", () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     clearCache();
   });
 
