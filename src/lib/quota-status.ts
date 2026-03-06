@@ -351,6 +351,9 @@ export async function buildQuotaStatusReport(params: {
   if (copilotDiag.pat.config?.organization) {
     lines.push(`- pat_organization: ${copilotDiag.pat.config.organization}`);
   }
+  if (copilotDiag.pat.config?.enterprise) {
+    lines.push(`- pat_enterprise: ${copilotDiag.pat.config.enterprise}`);
+  }
   lines.push(`- billing_mode: ${copilotDiag.billingMode}`);
   lines.push(`- billing_scope: ${copilotDiag.billingScope}`);
   lines.push(`- billing_api_access_likely: ${copilotDiag.billingApiAccessLikely ? "true" : "false"}`);
@@ -364,6 +367,16 @@ export async function buildQuotaStatusReport(params: {
   if (copilotDiag.billingMode === "organization_usage") {
     lines.push("- billing_usage_note: organization premium usage for the current billing period");
     lines.push("- remaining_quota_note: valid PAT access can query billing usage, but pooled org usage does not provide a true per-user remaining quota");
+  }
+  if (copilotDiag.billingMode === "enterprise_usage") {
+    lines.push("- billing_usage_note: enterprise premium usage for the current billing period");
+    lines.push("- remaining_quota_note: valid enterprise billing access can query pooled enterprise usage, but it does not provide a true per-user remaining quota");
+  }
+  if (copilotDiag.billingTargetError) {
+    lines.push(`- billing_target_error: ${copilotDiag.billingTargetError}`);
+  }
+  if (copilotDiag.tokenCompatibilityError) {
+    lines.push(`- token_compatibility_error: ${copilotDiag.tokenCompatibilityError}`);
   }
   if (copilotDiag.pat.error) {
     lines.push(`- pat_error: ${copilotDiag.pat.error}`);

@@ -50,11 +50,11 @@ export const copilotProvider: QuotaProvider = {
     return {
       attempted: true,
       entries:
-        result.mode === "organization_usage"
+        result.mode === "organization_usage" || result.mode === "enterprise_usage"
           ? [
             {
               kind: "value",
-              name: "Copilot Org",
+              name: result.mode === "enterprise_usage" ? "Copilot Enterprise" : "Copilot Org",
               value: `${result.used} used`,
               resetTimeIso: result.resetTimeIso,
             },

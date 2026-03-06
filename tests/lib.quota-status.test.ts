@@ -6,6 +6,40 @@ const fsPromiseMocks = vi.hoisted(() => ({
   }),
 }));
 
+const copilotMocks = vi.hoisted(() => ({
+  getCopilotQuotaAuthDiagnostics: vi.fn(() => ({
+    pat: {
+      state: "valid",
+      checkedPaths: ["/tmp/copilot-quota-token.json"],
+      selectedPath: "/tmp/copilot-quota-token.json",
+      tokenKind: "github_pat",
+      config: {
+        token: "github_pat_123",
+        tier: "business",
+        organization: "acme-corp",
+        username: "alice",
+      },
+    },
+    oauth: {
+      configured: true,
+      keyName: "github-copilot",
+      hasRefreshToken: false,
+      hasAccessToken: true,
+    },
+    effectiveSource: "pat",
+    override: "pat_overrides_oauth",
+    billingMode: "organization_usage",
+    billingScope: "organization",
+    billingApiAccessLikely: true,
+    remainingTotalsState: "not_available_from_org_usage",
+    queryPeriod: {
+      year: 2026,
+      month: 1,
+    },
+    usernameFilter: "alice",
+  })),
+}));
+
 vi.mock("fs/promises", () => ({
   stat: fsPromiseMocks.stat,
 }));
@@ -51,37 +85,7 @@ vi.mock("../src/lib/chutes.js", () => ({
 }));
 
 vi.mock("../src/lib/copilot.js", () => ({
-  getCopilotQuotaAuthDiagnostics: vi.fn(() => ({
-    pat: {
-      state: "valid",
-      checkedPaths: ["/tmp/copilot-quota-token.json"],
-      selectedPath: "/tmp/copilot-quota-token.json",
-      tokenKind: "github_pat",
-      config: {
-        token: "github_pat_123",
-        tier: "business",
-        organization: "acme-corp",
-        username: "alice",
-      },
-    },
-    oauth: {
-      configured: true,
-      keyName: "github-copilot",
-      hasRefreshToken: false,
-      hasAccessToken: true,
-    },
-    effectiveSource: "pat",
-    override: "pat_overrides_oauth",
-    billingMode: "organization_usage",
-    billingScope: "organization",
-    billingApiAccessLikely: true,
-    remainingTotalsState: "not_available_from_org_usage",
-    queryPeriod: {
-      year: 2026,
-      month: 1,
-    },
-    usernameFilter: "alice",
-  })),
+  getCopilotQuotaAuthDiagnostics: copilotMocks.getCopilotQuotaAuthDiagnostics,
 }));
 
 vi.mock("../src/lib/qwen-local-quota.js", () => ({
@@ -182,5 +186,71 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain(
       "- remaining_quota_note: valid PAT access can query billing usage, but pooled org usage does not provide a true per-user remaining quota",
     );
+  });
+
+  it("reports enterprise billing scope and token compatibility notes", async () => {
+    copilotMocks.getCopilotQuotaAuthDiagnostics.mockReturnValueOnce({
+      pat: {
+        state: "valid",
+        checkedPaths: ["/tmp/copilot-quota-token.json"],
+        selectedPath: "/tmp/copilot-quota-token.json",
+        tokenKind: "github_pat",
+        config: {
+          token: "github_pat_123",
+          tier: "enterprise",
+          enterprise: "acme-enterprise",
+          organization: "acme-corp",
+          username: "alice",
+        },
+      },
+      oauth: {
+        configured: false,
+        keyName: null,
+        hasRefreshToken: false,
+        hasAccessToken: false,
+      },
+      effectiveSource: "pat",
+      override: "none",
+      billingMode: "enterprise_usage",
+      billingScope: "enterprise",
+      billingApiAccessLikely: false,
+      remainingTotalsState: "not_available_from_enterprise_usage",
+      queryPeriod: {
+        year: 2026,
+        month: 1,
+      },
+      usernameFilter: "alice",
+      tokenCompatibilityError:
+        "GitHub's enterprise premium usage endpoint does not support fine-grained personal access tokens. Use a classic PAT or another supported non-fine-grained token for enterprise billing.",
+    });
+
+    const { buildQuotaStatusReport } = await import("../src/lib/quota-status.js");
+
+    const report = await buildQuotaStatusReport({
+      configSource: "test",
+      configPaths: [],
+      enabledProviders: ["copilot"],
+      onlyCurrentModel: false,
+      providerAvailability: [
+        {
+          id: "copilot",
+          enabled: true,
+          available: true,
+        },
+      ],
+    });
+
+    expect(report).toContain("- pat_enterprise: acme-enterprise");
+    expect(report).toContain("- billing_mode: enterprise_usage");
+    expect(report).toContain("- billing_scope: enterprise");
+    expect(report).toContain("- billing_api_access_likely: false");
+    expect(report).toContain("- remaining_totals_state: not_available_from_enterprise_usage");
+    expect(report).toContain(
+      "- billing_usage_note: enterprise premium usage for the current billing period",
+    );
+    expect(report).toContain(
+      "- remaining_quota_note: valid enterprise billing access can query pooled enterprise usage, but it does not provide a true per-user remaining quota",
+    );
+    expect(report).toContain("- token_compatibility_error: GitHub's enterprise premium usage endpoint does not support fine-grained personal access tokens.");
   });
 });

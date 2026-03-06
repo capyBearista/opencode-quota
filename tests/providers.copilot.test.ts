@@ -68,6 +68,33 @@ describe("copilot provider", () => {
     ]);
   });
 
+  it("maps enterprise usage into a value toast entry", async () => {
+    const { queryCopilotQuota } = await import("../src/lib/copilot.js");
+    (queryCopilotQuota as any).mockResolvedValueOnce({
+      success: true,
+      mode: "enterprise_usage",
+      enterprise: "acme-enterprise",
+      organization: "acme-corp",
+      period: {
+        year: 2026,
+        month: 1,
+      },
+      used: 19,
+      resetTimeIso: "2026-02-01T00:00:00.000Z",
+    });
+
+    const out = await copilotProvider.fetch({} as any);
+    expectAttemptedWithNoErrors(out);
+    expect(out.entries).toEqual([
+      {
+        kind: "value",
+        name: "Copilot Enterprise",
+        value: "19 used",
+        resetTimeIso: "2026-02-01T00:00:00.000Z",
+      },
+    ]);
+  });
+
   it("maps errors into toast errors", async () => {
     const { queryCopilotQuota } = await import("../src/lib/copilot.js");
     (queryCopilotQuota as any).mockResolvedValueOnce({

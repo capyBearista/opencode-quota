@@ -120,7 +120,7 @@ npm run build
 
 **Personal usage:** No extra setup required. The plugin uses OpenCode auth to query your user billing report.
 
-**Organization usage:** Create `copilot-quota-token.json` under OpenCode's runtime config directory (see `opencode debug paths`).
+**Managed usage:** Create `copilot-quota-token.json` under OpenCode's runtime config directory (see `opencode debug paths`).
 
 Organization example:
 
@@ -132,23 +132,43 @@ Organization example:
 }
 ```
 
-For organization-managed Copilot plans such as `business` or `enterprise`, `organization` is required. `username` is optional and is only used as the `?user=` filter on the organization report.
+Enterprise example:
 
-Business and enterprise organization mode reports organization-level premium usage for the current billing period. It does not represent a single user's quota, and the available GitHub billing API/config does not provide a reliable way to derive a true per-user remaining premium quota from pooled organization usage.
+```json
+{
+  "token": "ghp_...",
+  "tier": "enterprise",
+  "enterprise": "your-enterprise-slug",
+  "organization": "optional-org-filter",
+  "username": "optional-user-filter"
+}
+```
 
-Run `/quota_status` and check `copilot_quota_auth` to confirm whether the plugin is in `user_quota` mode or `organization_usage` mode. In organization mode, `billing_api_access_likely=true` means the PAT should be able to query billing usage, but it does not mean per-user remaining totals can be computed.
+`business` requires `organization`. `enterprise` accepts either:
+
+- `enterprise` to query `/enterprises/{enterprise}/settings/billing/premium_request/usage`
+- `organization` to keep using the organization billing endpoint for backwards compatibility
+
+`username` remains optional and is used as the `?user=` filter on organization and enterprise reports.
+
+Organization and enterprise managed modes report pooled premium usage for the current billing period. They do not represent a single user's quota, and the available GitHub billing API/config does not provide a reliable way to derive a true per-user remaining premium quota from pooled usage.
+
+Run `/quota_status` and check `copilot_quota_auth` to confirm whether the plugin is in `user_quota`, `organization_usage`, or `enterprise_usage` mode. In managed modes, `billing_api_access_likely=true` means the token should be able to query billing usage, but it does not mean per-user remaining totals can be computed.
 
 - **Organization PAT permission:** fine-grained PAT with **Organization permissions > Administration > Read**.
+- **Enterprise token requirement:** GitHub's enterprise premium usage endpoint does **not** support fine-grained PATs or GitHub App access tokens. Use a supported enterprise token such as a classic PAT.
 
 Tier options: `free`, `pro`, `pro+`, `business`, `enterprise`
 
 If both OpenCode Copilot auth and `copilot-quota-token.json` are present, the plugin uses the PAT config first.
 
+If `copilot-quota-token.json` is present but invalid, unsupported for the selected billing scope, or otherwise unusable, the plugin returns that PAT/config error and does **not** fall back to OpenCode OAuth automatically.
+
 For personal plans, a PAT is optional. Use it only if you want an explicit tier override for quota totals.
 
-If you need isolated individual Copilot premium tracking, use an account or setup that is billed and managed as a single person instead of relying on pooled organization usage.
+If you need isolated individual Copilot premium tracking, use an account or setup that is billed and managed as a single person instead of relying on pooled organization or enterprise usage.
 
-Run `/quota_status` and check `copilot_quota_auth` to confirm `pat_state`, `pat_organization`, `billing_mode`, `billing_scope`, candidate paths checked, and `effective_source`/`override`.
+Run `/quota_status` and check `copilot_quota_auth` to confirm `pat_state`, `pat_organization`, `pat_enterprise`, `billing_mode`, `billing_scope`, candidate paths checked, and `effective_source`/`override`.
 </details>
 
 <details>

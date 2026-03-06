@@ -130,12 +130,22 @@ export interface CopilotQuotaConfig {
   /** Optional user login override for user-scoped reports or org user filtering */
   username?: string;
   /**
-   * Optional organization slug for organization-scoped premium request reports.
+   * Optional organization slug.
    *
-   * When present, the plugin queries
+   * In business mode, this selects
    * `/organizations/{org}/settings/billing/premium_request/usage`.
+   *
+   * In enterprise mode with an explicit `enterprise` slug, this becomes the
+   * optional `organization` query filter on the enterprise usage report.
    */
   organization?: string;
+  /**
+   * Optional enterprise slug for enterprise-scoped premium request reports.
+   *
+   * When present, the plugin queries
+   * `/enterprises/{enterprise}/settings/billing/premium_request/usage`.
+   */
+  enterprise?: string;
   /** Copilot subscription tier (used for personal-tier fallback quota math) */
   tier: CopilotTier;
 }
@@ -321,6 +331,21 @@ export interface CopilotOrganizationUsageResult {
   resetTimeIso?: string;
 }
 
+/** Result from fetching enterprise-scoped Copilot premium usage */
+export interface CopilotEnterpriseUsageResult {
+  success: true;
+  mode: "enterprise_usage";
+  enterprise: string;
+  organization?: string;
+  username?: string;
+  period: {
+    year: number;
+    month: number;
+  };
+  used: number;
+  resetTimeIso?: string;
+}
+
 /** Result from fetching Google quota for a single model */
 export interface GoogleModelQuota {
   modelId: GoogleModelId;
@@ -353,6 +378,7 @@ export interface QuotaError {
 export type CopilotResult =
   | CopilotQuotaResult
   | CopilotOrganizationUsageResult
+  | CopilotEnterpriseUsageResult
   | QuotaError
   | null;
 export type GoogleResult = GoogleQuotaResult | QuotaError | null;
