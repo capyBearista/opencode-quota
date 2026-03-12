@@ -60,9 +60,11 @@ describe("formatQuotaCommand", () => {
       },
     });
 
-    expect(out).toMatchInlineSnapshot(`
-      "# Quota (/quota)
-      → [Copilot] (personal)
+    const lines = out.split("\n");
+    expect(lines[0]).toMatch(/^# Quota \(\/quota\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}$/);
+    expect(lines[1]).toBe("");
+    expect(lines.slice(2).join("\n")).toMatchInlineSnapshot(`
+      "→ [Copilot] (personal)
         Quota: 42/300    ███████████████░░░  86% left (resets in 12h)
 
       → [Copilot] (business)

@@ -81,6 +81,20 @@ export function fmtUsdAmount(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
+function pad2(n: number): string {
+  return String(Math.trunc(n)).padStart(2, "0");
+}
+
+export function formatLocalCallTimestamp(atMs?: number): string {
+  const safeMs = typeof atMs === "number" && Number.isFinite(atMs) ? atMs : Date.now();
+  const d = new Date(safeMs);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())} ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+export function renderCommandHeading(params: { title: string; generatedAtMs?: number }): string {
+  return `# ${params.title} ${formatLocalCallTimestamp(params.generatedAtMs)}`;
+}
+
 export function shortenModelName(name: string, maxLen: number): string {
   if (name.length <= maxLen) return name;
   // Remove common prefixes/suffixes

@@ -37,8 +37,8 @@ That is enough for most installs. Providers are auto-detected from your existing
 ## What You Get
 
 - Toasts after assistant responses, idle transitions, and compaction events
-- `/quota` for a grouped manual quota report such as `[OpenAI] (Pro)` or `[Copilot] (business)`
-- `/tokens_*` commands backed by local OpenCode history and a local pricing snapshot
+- `/quota` for a grouped manual quota report such as `[OpenAI] (Pro)` or `[Copilot] (business)`, with a local call timestamp in the heading
+- `/tokens_*` commands backed by local OpenCode history and a local pricing snapshot, each with a local call timestamp in the heading
 - No model calls to compute the toast or report output
 
 ## Common Install Patterns
@@ -77,8 +77,8 @@ Qwen quota support depends on the companion auth plugin:
 
 | Command | What it shows |
 | --- | --- |
-| `/quota` | Manual grouped quota report |
-| `/quota_status` | Diagnostics: config, provider availability, account detection, pricing snapshot health |
+| `/quota` | Manual grouped quota report with a local call timestamp |
+| `/quota_status` | Concise diagnostics for config, provider availability, account detection, and pricing snapshot health |
 | `/tokens_today` | Tokens used today (calendar day) |
 | `/tokens_daily` | Tokens used in the last 24 hours |
 | `/tokens_weekly` | Tokens used in the last 7 days |

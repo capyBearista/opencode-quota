@@ -171,8 +171,22 @@ describe("buildQuotaStatusReport", () => {
           available: true,
         },
       ],
+      generatedAtMs: Date.UTC(2026, 2, 12, 12, 45, 0),
     });
 
+    expect(report).toMatch(
+      /^# Quota Status \(opencode-quota v1\.2\.3\) \(\/quota_status\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/,
+    );
+    expect(report).toContain(
+      "- opencode_dirs: data=/tmp/data config=/tmp/config cache=/tmp/cache state=/tmp/state",
+    );
+    expect(report).toContain(
+      "- auth.json: preferred=/tmp/auth.json present=(none) candidates=/tmp/auth.json",
+    );
+    expect(report).toContain(
+      "- pricing: source=test active_source=test generated_at=2026-01-01T00:00:00.000Z units=usd_per_1m_tokens",
+    );
+    expect(report).not.toContain("- opencode data:");
     expect(report).toContain("copilot_quota_auth:");
     expect(report).toContain("- billing_mode: organization_usage");
     expect(report).toContain("- billing_scope: organization");
@@ -238,6 +252,7 @@ describe("buildQuotaStatusReport", () => {
           available: true,
         },
       ],
+      generatedAtMs: Date.UTC(2026, 2, 12, 12, 45, 0),
     });
 
     expect(report).toContain("- pat_enterprise: acme-enterprise");

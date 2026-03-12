@@ -57,7 +57,7 @@ describe("formatQuotaStatsReport (markdown)", () => {
       result: r,
       topModels: 99,
     });
-    expect(out).toContain("# Tokens used (Last 24 Hours) (/tokens_daily)");
+    expect(out).toMatch(/^# Tokens used \(Last 24 Hours\) \(\/tokens_daily\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/);
     expect(out).toContain("## Models");
     expect(out).toContain("| Source");
     // blank separator row between sources
@@ -132,7 +132,7 @@ describe("formatQuotaStatsReport (markdown)", () => {
     });
 
     // Title should be present
-    expect(out).toContain("# Tokens used (Current Session) (/tokens_session)");
+    expect(out).toMatch(/^# Tokens used \(Current Session\) \(\/tokens_session\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/);
 
     // Summary table should NOT have Window or Sessions columns
     expect(out).not.toContain("| Window");

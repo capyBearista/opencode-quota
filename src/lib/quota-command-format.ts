@@ -9,7 +9,7 @@
 
 import type { QuotaToastEntry, QuotaToastError, SessionTokensData } from "./entries.js";
 import { isValueEntry } from "./entries.js";
-import { bar, clampInt, padRight } from "./format-utils.js";
+import { bar, clampInt, padRight, renderCommandHeading } from "./format-utils.js";
 import { formatGroupedHeader } from "./grouped-header-format.js";
 import { normalizeGroupedQuotaEntries } from "./grouped-entry-normalization.js";
 import { renderSessionTokensLines } from "./session-tokens-format.js";
@@ -40,7 +40,7 @@ function getGroupedLeftText(entry: QuotaToastEntry): string {
   return right ? `${label} ${right}` : label;
 }
 
-export function formatQuotaCommand(params: {
+export function formatQuotaCommandBody(params: {
   entries: QuotaToastEntry[];
   errors: QuotaToastError[];
   sessionTokens?: SessionTokensData;
@@ -59,7 +59,6 @@ export function formatQuotaCommand(params: {
   }
 
   const lines: string[] = [];
-  lines.push("# Quota (/quota)");
 
   const barWidth = 18;
   const leftCol = Math.max(
@@ -108,4 +107,18 @@ export function formatQuotaCommand(params: {
   }
 
   return lines.join("\n");
+}
+
+export function formatQuotaCommand(params: {
+  entries: QuotaToastEntry[];
+  errors: QuotaToastError[];
+  sessionTokens?: SessionTokensData;
+  generatedAtMs?: number;
+}): string {
+  const heading = renderCommandHeading({
+    title: "Quota (/quota)",
+    generatedAtMs: params.generatedAtMs,
+  });
+  const body = formatQuotaCommandBody(params);
+  return body.length > 0 ? `${heading}\n\n${body}` : heading;
 }

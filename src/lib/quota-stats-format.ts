@@ -1,4 +1,5 @@
 import type { AggregateResult, TokenBuckets } from "./quota-stats.js";
+import { renderCommandHeading } from "./format-utils.js";
 import { renderMarkdownTable, type WidthMode } from "./markdown-table.js";
 
 /** Use markdown-conceal for proper TUI alignment (strips markdown syntax for width calc) */
@@ -101,6 +102,7 @@ export function formatQuotaStatsReport(params: {
   focusSessionID?: string;
   /** When true, hides Window/Sessions columns and Top Sessions section (for session-only reports) */
   sessionOnly?: boolean;
+  generatedAtMs?: number;
 }): string {
   const topModels = params.topModels ?? 12;
   const topSessions = params.topSessions ?? 8;
@@ -109,7 +111,12 @@ export function formatQuotaStatsReport(params: {
 
   const lines: string[] = [];
 
-  lines.push(`# ${params.title}`);
+  lines.push(
+    renderCommandHeading({
+      title: params.title,
+      generatedAtMs: params.generatedAtMs,
+    }),
+  );
   lines.push("");
 
   // For session-only reports, show a simpler summary without Window/Sessions columns

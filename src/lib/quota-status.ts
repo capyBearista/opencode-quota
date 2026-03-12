@@ -33,6 +33,7 @@ import {
   getOpenCodeDbStats,
 } from "./opencode-storage.js";
 import { aggregateUsage } from "./quota-stats.js";
+import { renderCommandHeading } from "./format-utils.js";
 
 /** Session token fetch error info for status report */
 export interface SessionTokenError {
@@ -69,6 +70,12 @@ type PricingCoverageByProvider = {
   mappedMissingKeysSeen: number;
   unpricedKeysSeen: number;
 };
+
+const STATUS_SAMPLE_LIMIT = 5;
+
+function joinOrNone(values: string[]): string {
+  return values.length > 0 ? values.join(" | ") : "(none)";
+}
 
 function computePricingCoverageFromAgg(agg: Awaited<ReturnType<typeof aggregateUsage>>): {
   byProvider: Map<string, PricingCoverageByProvider>;
@@ -213,13 +220,19 @@ export async function buildQuotaStatusReport(params: {
     failures?: Array<{ email?: string; error: string }>;
   };
   sessionTokenError?: SessionTokenError;
+  generatedAtMs?: number;
 }): Promise<string> {
   const lines: string[] = [];
 
   const version = await getPackageVersion();
   const v = version ?? "unknown";
 
-  lines.push(`Quota Status (opencode-quota v${v}) (/quota_status)`);
+  lines.push(
+    renderCommandHeading({
+      title: `Quota Status (opencode-quota v${v}) (/quota_status)`,
+      generatedAtMs: params.generatedAtMs,
+    }),
+  );
   lines.push("");
 
   // === toast diagnostics ===
@@ -254,10 +267,9 @@ export async function buildQuotaStatusReport(params: {
   lines.push("paths:");
 
   const runtime = getOpencodeRuntimeDirs();
-  lines.push(`- opencode data: ${runtime.dataDir}`);
-  lines.push(`- opencode config: ${runtime.configDir}`);
-  lines.push(`- opencode cache: ${runtime.cacheDir}`);
-  lines.push(`- opencode state: ${runtime.stateDir}`);
+  lines.push(
+    `- opencode_dirs: data=${runtime.dataDir} config=${runtime.configDir} cache=${runtime.cacheDir} state=${runtime.stateDir}`,
+  );
   const authCandidates = getAuthPaths();
   const authPresent: string[] = [];
   await Promise.all(
@@ -270,11 +282,9 @@ export async function buildQuotaStatusReport(params: {
       }
     }),
   );
-  lines.push(`- auth.json (preferred): ${getAuthPath()}`);
   lines.push(
-    `- auth.json (candidates): ${authCandidates.length ? authCandidates.join(" | ") : "(none)"}`,
+    `- auth.json: preferred=${getAuthPath()} present=${joinOrNone(authPresent)} candidates=${joinOrNone(authCandidates)}`,
   );
-  lines.push(`- auth.json (present): ${authPresent.length ? authPresent.join(" | ") : "(none)"}`);
 
   const authData = await readAuthFileCached({ maxAgeMs: 5_000 });
   const qwenAuthConfigured = hasQwenOAuthAuth(authData);
@@ -283,7 +293,7 @@ export async function buildQuotaStatusReport(params: {
   const qwenLocalQuotaPath = getQwenLocalQuotaPath();
   const qwenLocalQuotaExists = await pathExists(qwenLocalQuotaPath);
   lines.push(
-    `- qwen local quota: ${qwenLocalQuotaPath}${qwenLocalQuotaExists ? "" : " (missing)"}`,
+    `- qwen local quota: path=${qwenLocalQuotaPath} exists=${qwenLocalQuotaExists ? "true" : "false"}`,
   );
   try {
     const qwenState = await readQwenLocalQuotaState();
@@ -308,13 +318,9 @@ export async function buildQuotaStatusReport(params: {
   } catch {
     // ignore
   }
-  lines.push(`- firmware api key configured: ${firmwareDiag.configured ? "true" : "false"}`);
-  if (firmwareDiag.source) {
-    lines.push(`- firmware api key source: ${firmwareDiag.source}`);
-  }
-  if (firmwareDiag.checkedPaths.length > 0) {
-    lines.push(`- firmware api key checked: ${firmwareDiag.checkedPaths.join(" | ")}`);
-  }
+  lines.push(
+    `- firmware api key: configured=${firmwareDiag.configured ? "true" : "false"}${firmwareDiag.source ? ` source=${firmwareDiag.source}` : ""}${firmwareDiag.checkedPaths.length > 0 ? ` checked=${firmwareDiag.checkedPaths.join(" | ")}` : ""}`,
+  );
 
   // Chutes API key diagnostics
   let chutesDiag: { configured: boolean; source: string | null; checkedPaths: string[] } = {
@@ -327,13 +333,9 @@ export async function buildQuotaStatusReport(params: {
   } catch {
     // ignore
   }
-  lines.push(`- chutes api key configured: ${chutesDiag.configured ? "true" : "false"}`);
-  if (chutesDiag.source) {
-    lines.push(`- chutes api key source: ${chutesDiag.source}`);
-  }
-  if (chutesDiag.checkedPaths.length > 0) {
-    lines.push(`- chutes api key checked: ${chutesDiag.checkedPaths.join(" | ")}`);
-  }
+  lines.push(
+    `- chutes api key: configured=${chutesDiag.configured ? "true" : "false"}${chutesDiag.source ? ` source=${chutesDiag.source}` : ""}${chutesDiag.checkedPaths.length > 0 ? ` checked=${chutesDiag.checkedPaths.join(" | ")}` : ""}`,
+  );
 
   const copilotDiag = getCopilotQuotaAuthDiagnostics(authData);
   lines.push("");
@@ -391,7 +393,7 @@ export async function buildQuotaStatusReport(params: {
   lines.push(`- override: ${copilotDiag.override}`);
   const googleTokenCachePath = getGoogleTokenCachePath();
   lines.push(
-    `- google token cache: ${googleTokenCachePath}${(await pathExists(googleTokenCachePath)) ? "" : " (missing)"}`,
+    `- google token cache: path=${googleTokenCachePath} exists=${(await pathExists(googleTokenCachePath)) ? "true" : "false"}`,
   );
 
   const candidates = getAntigravityAccountsCandidatePaths();
@@ -402,12 +404,8 @@ export async function buildQuotaStatusReport(params: {
     }),
   );
   const selected = presentCandidates[0] ?? null;
-  lines.push(`- antigravity accounts (selected): ${selected ?? "(none)"}`);
   lines.push(
-    `- antigravity accounts (candidates): ${candidates.length ? candidates.join(" | ") : "(none)"}`,
-  );
-  lines.push(
-    `- antigravity accounts (present): ${presentCandidates.length ? presentCandidates.join(" | ") : "(none)"}`,
+    `- antigravity accounts: selected=${selected ?? "(none)"} present=${joinOrNone(presentCandidates)} candidates=${joinOrNone(candidates)}`,
   );
 
   const dbCandidates = getOpenCodeDbPathCandidates();
@@ -419,11 +417,9 @@ export async function buildQuotaStatusReport(params: {
     }),
   );
 
-  lines.push(`- opencode db (preferred): ${dbSelected}`);
   lines.push(
-    `- opencode db (candidates): ${dbCandidates.length ? dbCandidates.join(" | ") : "(none)"}`,
+    `- opencode db: preferred=${dbSelected} present=${joinOrNone(dbPresent)} candidates=${joinOrNone(dbCandidates)}`,
   );
-  lines.push(`- opencode db (present): ${dbPresent.length ? dbPresent.join(" | ") : "(none)"}`);
 
   if (params.googleRefresh?.attempted) {
     lines.push("");
@@ -488,12 +484,10 @@ export async function buildQuotaStatusReport(params: {
 
   lines.push("");
   lines.push("pricing_snapshot:");
-  lines.push(`- source: ${meta.source}`);
-  lines.push(`- active_source: ${snapshotSource}`);
-  lines.push(`- generatedAt: ${new Date(meta.generatedAt).toISOString()}`);
-  lines.push(`- units: ${meta.units}`);
-  lines.push(`- runtime_snapshot_path: ${runtimeSnapshotPath}`);
-  lines.push(`- refresh_state_path: ${refreshStatePath}`);
+  lines.push(
+    `- pricing: source=${meta.source} active_source=${snapshotSource} generated_at=${new Date(meta.generatedAt).toISOString()} units=${meta.units}`,
+  );
+  lines.push(`- runtime_paths: snapshot=${runtimeSnapshotPath} refresh_state=${refreshStatePath}`);
   lines.push(
     `- staleness: age_ms=${fmtInt(health.ageMs)} max_age_ms=${fmtInt(health.maxAgeMs)} stale=${health.stale ? "true" : "false"}`,
   );
@@ -541,15 +535,15 @@ export async function buildQuotaStatusReport(params: {
     lines.push(
       `- keys: ${fmtInt(agg.unpriced.length)} tokens_total=${fmtInt(tokensTotal(agg.totals.unpriced))}`,
     );
-    for (const row of agg.unpriced.slice(0, 25)) {
+    for (const row of agg.unpriced.slice(0, STATUS_SAMPLE_LIMIT)) {
       const src = `${row.key.sourceProviderID}/${row.key.sourceModelID}`;
       const mapped = `${row.key.mappedProvider}/${row.key.mappedModel}`;
       lines.push(
         `- ${src} mapped=${mapped} tokens=${fmtInt(tokensTotal(row.tokens))} msgs=${fmtInt(row.messageCount)} reason=${row.key.reason}`,
       );
     }
-    if (agg.unpriced.length > 25) {
-      lines.push(`- ... (${fmtInt(agg.unpriced.length - 25)} more)`);
+    if (agg.unpriced.length > STATUS_SAMPLE_LIMIT) {
+      lines.push(`- ... (${fmtInt(agg.unpriced.length - STATUS_SAMPLE_LIMIT)} more)`);
     }
   }
 
@@ -563,7 +557,7 @@ export async function buildQuotaStatusReport(params: {
     lines.push(
       `- keys: ${fmtInt(agg.unknown.length)} tokens_total=${fmtInt(tokensTotal(agg.totals.unknown))}`,
     );
-    for (const row of agg.unknown.slice(0, 25)) {
+    for (const row of agg.unknown.slice(0, STATUS_SAMPLE_LIMIT)) {
       const src = `${row.key.sourceProviderID}/${row.key.sourceModelID}`;
       const mappedBase =
         row.key.mappedProvider && row.key.mappedModel
@@ -577,8 +571,8 @@ export async function buildQuotaStatusReport(params: {
         `- ${src} mapped=${mappedBase}${candidates} tokens=${fmtInt(tokensTotal(row.tokens))} msgs=${fmtInt(row.messageCount)}`,
       );
     }
-    if (agg.unknown.length > 25) {
-      lines.push(`- ... (${fmtInt(agg.unknown.length - 25)} more)`);
+    if (agg.unknown.length > STATUS_SAMPLE_LIMIT) {
+      lines.push(`- ... (${fmtInt(agg.unknown.length - STATUS_SAMPLE_LIMIT)} more)`);
     }
   }
 

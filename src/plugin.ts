@@ -12,7 +12,7 @@ import { DEFAULT_CONFIG } from "./lib/types.js";
 import { loadConfig, createLoadConfigMeta, type LoadConfigMeta } from "./lib/config.js";
 import { getOrFetchWithCacheControl } from "./lib/cache.js";
 import { formatQuotaRows } from "./lib/format.js";
-import { formatQuotaCommand } from "./lib/quota-command-format.js";
+import { formatQuotaCommandBody } from "./lib/quota-command-format.js";
 import { getProviders } from "./providers/registry.js";
 import type {
   QuotaProvider,
@@ -41,6 +41,7 @@ import {
   type Ymd,
 } from "./lib/command-parsing.js";
 import { handled } from "./lib/command-handled.js";
+import { renderCommandHeading } from "./lib/format-utils.js";
 
 // =============================================================================
 // Types
@@ -841,7 +842,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     }
   }
 
-  async function fetchQuotaCommandMessage(
+  async function fetchQuotaCommandBody(
     trigger: string,
     sessionID?: string,
   ): Promise<string | null> {
@@ -901,7 +902,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       lastSessionTokenError = stResult.error;
     }
 
-    return formatQuotaCommand({ entries, errors, sessionTokens });
+    return formatQuotaCommandBody({ entries, errors, sessionTokens });
   }
 
   async function buildQuotaReport(params: {
@@ -914,6 +915,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     filterSessionID?: string;
     /** When true, hides Window/Sessions columns and Top Sessions section */
     sessionOnly?: boolean;
+    generatedAtMs: number;
   }): Promise<string> {
     const result = await aggregateUsage({
       sinceMs: params.sinceMs,
@@ -927,6 +929,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       topSessions: params.topSessions,
       focusSessionID: params.sessionID,
       sessionOnly: params.sessionOnly,
+      generatedAtMs: params.generatedAtMs,
     });
   }
 
@@ -935,6 +938,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     skewMs?: number;
     force?: boolean;
     sessionID?: string;
+    generatedAtMs: number;
   }): Promise<string | null> {
     await refreshConfig();
     if (!config.enabled) return null;
@@ -995,6 +999,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           }
         : { attempted: false },
       sessionTokenError: lastSessionTokenError,
+      generatedAtMs: params.generatedAtMs,
     });
   }
 
@@ -1039,38 +1044,39 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         }
 
         if (cmd === "quota") {
+          const generatedAtMs = Date.now();
           // Separate cache for /quota so it doesn't pollute the toast cache.
           let quotaCache = (globalThis as any).__opencodeQuotaCommandCache as
-            | { message: string; timestamp: number; inFlight?: Promise<string | null> }
+            | { body: string; timestamp: number; inFlight?: Promise<string | null> }
             | undefined;
           if (!quotaCache) {
-            quotaCache = { message: "", timestamp: 0 };
+            quotaCache = { body: "", timestamp: 0 };
             (globalThis as any).__opencodeQuotaCommandCache = quotaCache;
           }
 
-          const now = Date.now();
+          const now = generatedAtMs;
           const cached =
             quotaCache.timestamp && now - quotaCache.timestamp < config.minIntervalMs
-              ? quotaCache.message
+              ? quotaCache.body
               : null;
 
-          const msg = cached
+          const body = cached
             ? cached
             : await (quotaCache.inFlight ??
                 (quotaCache.inFlight = (async () => {
                   try {
-                    return await fetchQuotaCommandMessage("command:/quota", sessionID);
+                    return await fetchQuotaCommandBody("command:/quota", sessionID);
                   } finally {
                     quotaCache!.inFlight = undefined;
                   }
                 })()));
 
-          if (msg) {
-            quotaCache.message = msg;
+          if (body) {
+            quotaCache.body = body;
             quotaCache.timestamp = Date.now();
           }
 
-          if (!msg) {
+          if (!body) {
             // Provide an actionable message instead of a generic "unavailable".
             if (!configLoaded) {
               await injectRawOutput(sessionID, "Quota unavailable (config not loaded, try again)");
@@ -1109,7 +1115,11 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             handled();
           }
 
-          await injectRawOutput(sessionID, msg);
+          const heading = renderCommandHeading({
+            title: "Quota (/quota)",
+            generatedAtMs,
+          });
+          await injectRawOutput(sessionID, `${heading}\n\n${body}`);
           handled();
         }
 
@@ -1117,6 +1127,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
         // Handle token report commands (/tokens_*)
         if (isTokenReportCommand(cmd)) {
+          const generatedAtMs = Date.now();
           await kickPricingRefresh({ reason: "tokens", maxWaitMs: 750 });
           const spec = TOKEN_REPORT_COMMANDS_BY_ID.get(cmd)!;
 
@@ -1137,6 +1148,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
               sinceMs,
               untilMs: rangeUntilMs,
               sessionID,
+              generatedAtMs,
             });
             await injectRawOutput(sessionID, out);
             handled();
@@ -1178,6 +1190,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             sessionOnly,
             topModels,
             topSessions,
+            generatedAtMs,
           });
           await injectRawOutput(sessionID, out);
           handled();
@@ -1185,6 +1198,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
         // Handle /quota_status (diagnostics - not a token report)
         if (cmd === "quota_status") {
+          const generatedAtMs = Date.now();
           const parsed = parseOptionalJsonArgs(input.arguments);
           if (!parsed.ok) {
             await injectRawOutput(
@@ -1202,6 +1216,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
                 : undefined,
             force: parsed.value["force"] === true,
             sessionID,
+            generatedAtMs,
           });
           if (out) {
             await injectRawOutput(sessionID, out);
@@ -1242,6 +1257,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             skewMs: args.skewMs,
             force: args.force,
             sessionID: context.sessionID,
+            generatedAtMs: Date.now(),
           });
           if (!out) return "";
           context.metadata({ title: "Quota Status" });
