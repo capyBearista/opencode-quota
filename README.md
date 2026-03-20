@@ -84,7 +84,7 @@ If you want grouped toast layout instead of the default classic toast, use:
 <details>
 <summary><strong>(Setup) Cursor companion plugin</strong></summary>
 
-Cursor quota support requires the `opencode-cursor-oauth` companion auth plugin:
+Cursor quota support requires the [`opencode-cursor-oauth` companion auth plugin](https://github.com/ephraimduncan/opencode-cursor):
 
 ```jsonc
 {
