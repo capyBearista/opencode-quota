@@ -34,9 +34,9 @@ Then:
 That is enough for most installs. Providers are auto-detected from your existing OpenCode setup.
 
 <details>
-<summary><strong>Optional Config</strong></summary>
+<summary><strong>(Example) Narrow the plugin to specific providers</strong></summary>
 
-You do not need extra config to get started. If you want to narrow the plugin to specific providers, use:
+If you want to narrow the plugin to specific providers, use:
 
 ```jsonc
 {
@@ -48,25 +48,18 @@ You do not need extra config to get started. If you want to narrow the plugin to
 }
 ```
 
-If you want grouped toast layout instead of the default classic toast:
+</details>
+
+<details>
+<summary><strong>(Example) Grouped toast layout instead of the default classic toast</strong></summary>
+
+If you want grouped toast layout instead of the default classic toast, use:
 
 ```jsonc
 {
   "experimental": {
     "quotaToast": {
       "toastStyle": "grouped"
-    }
-  }
-}
-```
-
-If Alibaba Coding Plan auth does not include a `tier`, you can set the fallback tier here:
-
-```jsonc
-{
-  "experimental": {
-    "quotaToast": {
-      "alibabaCodingPlanTier": "lite"
     }
   }
 }
@@ -89,9 +82,7 @@ If Alibaba Coding Plan auth does not include a `tier`, you can set the fallback 
 | Z.ai | Yes | None |
 
 <details>
-<summary><strong>Companion Plugin Setup</strong></summary>
-
-### Cursor
+<summary><strong>(Setup) Cursor companion plugin</strong></summary>
 
 Cursor quota support requires the `opencode-cursor-oauth` companion auth plugin:
 
@@ -119,7 +110,10 @@ Then authenticate once:
 opencode auth login --provider cursor
 ```
 
-### Google Antigravity
+</details>
+
+<details>
+<summary><strong>(Setup) Google Antigravity companion plugin</strong></summary>
 
 Google quota support requires the `opencode-antigravity-auth` [companion auth plugin](https://github.com/NoeFabris/opencode-antigravity-auth):
 
@@ -129,7 +123,10 @@ Google quota support requires the `opencode-antigravity-auth` [companion auth pl
 }
 ```
 
-### Qwen Code
+</details>
+
+<details>
+<summary><strong>(Setup) Qwen Code companion plugin</strong></summary>
 
 Qwen quota support requires the `opencode-qwencode-auth` [companion auth plugin](https://github.com/gustavodiasdev/opencode-qwencode-auth):
 
@@ -281,6 +278,18 @@ Supported tiers:
 - `pro`: 6000 requests / 5 hours, 45000 / week, 90000 / month
 - If `tier` is missing from auth, the plugin uses `experimental.quotaToast.alibabaCodingPlanTier` and defaults that setting to `lite`
 - Counters increment on successful question-tool completions while the current model is `alibaba/*` or `alibaba-cn/*`
+
+If Alibaba Coding Plan auth does not include a `tier`, you can set the fallback tier here:
+
+```jsonc
+{
+  "experimental": {
+    "quotaToast": {
+      "alibabaCodingPlanTier": "lite"
+    }
+  }
+}
+```
 
 State file path:
 
