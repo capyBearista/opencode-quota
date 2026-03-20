@@ -16,7 +16,7 @@
   </tr>
   <tr>
     <td width="50%">
-      <img src="https://github.com/slkiser/opencode-quota/blob/main/toast.png" alt="Image of opencode-quota toast" />
+      <img src="https://github.com/slkiser/opencode-quota/blob/main/toasts.png" alt="Image of opencode-quota toast" />
     </td>
     <td width="50%">
       <img src="https://github.com/slkiser/opencode-quota/blob/main/tokens.png" alt="Image of opencode-quota /tokens_weekly output" />
