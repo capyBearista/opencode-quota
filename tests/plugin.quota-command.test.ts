@@ -190,6 +190,42 @@ describe("/quota command behavior", () => {
     expect(injected).not.toContain("Cursor: Not configured");
   });
 
+  it("does not diagnose filtered providers as detected-but-empty when onlyCurrentModel excludes them", async () => {
+    mocks.loadConfig.mockResolvedValueOnce({
+      ...DEFAULT_CONFIG,
+      enabled: true,
+      onlyCurrentModel: true,
+      showOnQuestion: false,
+      showSessionTokens: false,
+      minIntervalMs: 60_000,
+    });
+
+    const provider = {
+      id: "cursor",
+      matchesCurrentModel: vi.fn((model?: string) => model === "cursor/auto"),
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn(),
+    };
+    mocks.getProviders.mockReturnValue([provider]);
+
+    const { QuotaToastPlugin } = await import("../src/plugin.js");
+    const client = createClient("openai/gpt-5");
+    const hooks = await QuotaToastPlugin({ client } as any);
+
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "session-filtered-out",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
+
+    expect(provider.fetch).not.toHaveBeenCalled();
+    expect(client.session.prompt).toHaveBeenCalledTimes(1);
+    const injected = client.session.prompt.mock.calls[0]?.[0]?.body?.parts?.[0]?.text ?? "";
+    expect(injected).toContain("No enabled quota providers matched the current model: openai/gpt-5.");
+    expect(injected).not.toContain("Providers detected");
+  });
+
   it("bypasses stale /quota cache for qwen local request-plan sessions", async () => {
     const provider = {
       id: "qwen-code",

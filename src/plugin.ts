@@ -153,6 +153,16 @@ type SessionModelMeta = {
   providerID?: string;
 };
 
+type QuotaCommandSelection = {
+  isAutoMode: boolean;
+  providers: QuotaProvider[];
+  filtered: QuotaProvider[];
+  ctx: QuotaProviderContext;
+  currentModel?: string;
+  currentProviderID?: string;
+  filteringByCurrentSelection: boolean;
+};
+
 // =============================================================================
 // Token Report Command Specification
 // =============================================================================
@@ -727,6 +737,119 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     ].join("\n");
   }
 
+  async function resolveQuotaCommandSelection(sessionID?: string): Promise<QuotaCommandSelection | null> {
+    if (!configLoaded) await refreshConfig();
+    if (!config.enabled) return null;
+
+    const allProviders = getProviders();
+    const isAutoMode = config.enabledProviders === "auto";
+    const providers = isAutoMode
+      ? allProviders
+      : allProviders.filter((p) => config.enabledProviders.includes(p.id));
+    if (!isAutoMode && providers.length === 0) return null;
+
+    let currentModel: string | undefined;
+    let currentProviderID: string | undefined;
+    if (config.onlyCurrentModel && sessionID) {
+      const currentSession = await getSessionModelMeta(sessionID);
+      currentModel = currentSession.modelID;
+      currentProviderID = currentSession.providerID;
+    }
+
+    const ctx: QuotaProviderContext = {
+      client: typedClient,
+      config: {
+        googleModels: config.googleModels,
+        alibabaCodingPlanTier: config.alibabaCodingPlanTier,
+        cursorPlan: config.cursorPlan,
+        cursorIncludedApiUsd: config.cursorIncludedApiUsd,
+        cursorBillingCycleStartDay: config.cursorBillingCycleStartDay,
+        // Always format /quota in grouped mode for a more dashboard-like look.
+        toastStyle: "grouped" as const,
+        onlyCurrentModel: config.onlyCurrentModel,
+        currentModel,
+        currentProviderID,
+      },
+    };
+
+    const filteringByCurrentSelection =
+      config.onlyCurrentModel && (currentModel || isCursorProviderId(currentProviderID));
+    const filtered = filteringByCurrentSelection
+      ? providers.filter((p) =>
+          matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID }),
+        )
+      : providers;
+
+    return {
+      isAutoMode,
+      providers,
+      filtered,
+      ctx,
+      currentModel,
+      currentProviderID,
+      filteringByCurrentSelection,
+    };
+  }
+
+  function describeQuotaCommandCurrentSelection(params: {
+    currentModel?: string;
+    currentProviderID?: string;
+  }): string {
+    if (isCursorProviderId(params.currentProviderID)) {
+      return `current provider: ${params.currentProviderID}`;
+    }
+    if (params.currentModel) {
+      return `current model: ${params.currentModel}`;
+    }
+    return "current session";
+  }
+
+  async function buildQuotaCommandUnavailableMessage(sessionID?: string): Promise<string> {
+    const selection = await resolveQuotaCommandSelection(sessionID);
+    if (!selection) {
+      return "Quota unavailable\n\nNo enabled quota providers are configured.\n\nRun /quota_status for diagnostics.";
+    }
+
+    if (selection.filteringByCurrentSelection && selection.filtered.length === 0) {
+      const detail = describeQuotaCommandCurrentSelection({
+        currentModel: selection.currentModel,
+        currentProviderID: selection.currentProviderID,
+      });
+      return `Quota unavailable\n\nNo enabled quota providers matched the ${detail}.\n\nRun /quota_status for diagnostics.`;
+    }
+
+    const avail = await Promise.all(
+      selection.filtered.map(async (p) => {
+        try {
+          return { id: p.id, ok: await p.isAvailable(selection.ctx) };
+        } catch {
+          return { id: p.id, ok: false };
+        }
+      }),
+    );
+    const availableIds = avail.filter((x) => x.ok).map((x) => x.id);
+
+    if (availableIds.length === 0) {
+      const scopedDetail = selection.filteringByCurrentSelection
+        ? ` for the ${describeQuotaCommandCurrentSelection({
+            currentModel: selection.currentModel,
+            currentProviderID: selection.currentProviderID,
+          })}`
+        : "";
+      return (
+        `Quota unavailable\n\nNo quota providers detected${scopedDetail}. ` +
+        "Make sure you are logged in to a supported provider (Copilot, OpenAI, etc.).\n\n" +
+        "Run /quota_status for diagnostics."
+      );
+    }
+
+    return (
+      `Quota unavailable\n\nProviders detected (${availableIds.join(", ")}) but returned no data. ` +
+      "This may be a temporary API error.\n\n" +
+      "Run /quota_status for diagnostics."
+    );
+  }
+
   async function fetchQuotaMessage(trigger: string, sessionID?: string): Promise<string | null> {
     // Ensure we have loaded config at least once. If load fails, we keep trying
     // on subsequent triggers.
@@ -994,48 +1117,13 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     trigger: string,
     sessionID?: string,
   ): Promise<string | null> {
-    if (!configLoaded) await refreshConfig();
-    if (!config.enabled) return null;
+    const selection = await resolveQuotaCommandSelection(sessionID);
+    if (!selection) return null;
 
-    const allProviders = getProviders();
-    const isAutoMode = config.enabledProviders === "auto";
-    const providers = isAutoMode
-      ? allProviders
-      : allProviders.filter((p) => config.enabledProviders.includes(p.id));
-    if (!isAutoMode && providers.length === 0) return null;
-
-    let currentModel: string | undefined;
-    let currentProviderID: string | undefined;
-    if (config.onlyCurrentModel && sessionID) {
-      const currentSession = await getSessionModelMeta(sessionID);
-      currentModel = currentSession.modelID;
-      currentProviderID = currentSession.providerID;
-    }
-
-    const ctx: QuotaProviderContext = {
-      client: typedClient,
-      config: {
-        googleModels: config.googleModels,
-        alibabaCodingPlanTier: config.alibabaCodingPlanTier,
-        cursorPlan: config.cursorPlan,
-        cursorIncludedApiUsd: config.cursorIncludedApiUsd,
-        cursorBillingCycleStartDay: config.cursorBillingCycleStartDay,
-        // Always format /quota in grouped mode for a more dashboard-like look.
-        toastStyle: "grouped" as const,
-        onlyCurrentModel: config.onlyCurrentModel,
-        currentModel,
-        currentProviderID,
-      },
-    };
-
-    const filtered =
-      config.onlyCurrentModel && (currentModel || isCursorProviderId(currentProviderID))
-        ? providers.filter((p) =>
-            matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID }),
-          )
-        : providers;
-
-    const avail = await Promise.all(filtered.map(async (p) => ({ p, ok: await p.isAvailable(ctx) })));
+    const { isAutoMode, ctx } = selection;
+    const avail = await Promise.all(
+      selection.filtered.map(async (p) => ({ p, ok: await p.isAvailable(ctx) })),
+    );
     const active = avail.filter((x) => x.ok).map((x) => x.p);
     if (active.length === 0) return null;
 
@@ -1269,40 +1357,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             } else if (!config.enabled) {
               await injectRawOutput(sessionID, "Quota disabled in config (enabled: false)");
             } else {
-              // Check what providers are available for a more specific hint.
-              const allProvs = getProviders();
-              const ctx = {
-                client: typedClient,
-                config: {
-                  googleModels: config.googleModels,
-                  alibabaCodingPlanTier: config.alibabaCodingPlanTier,
-                  cursorPlan: config.cursorPlan,
-                  cursorIncludedApiUsd: config.cursorIncludedApiUsd,
-                  cursorBillingCycleStartDay: config.cursorBillingCycleStartDay,
-                },
-              };
-              const avail = await Promise.all(
-                allProvs.map(async (p) => {
-                  try {
-                    return { id: p.id, ok: await p.isAvailable(ctx) };
-                  } catch {
-                    return { id: p.id, ok: false };
-                  }
-                }),
-              );
-              const availableIds = avail.filter((x) => x.ok).map((x) => x.id);
-
-              if (availableIds.length === 0) {
-                await injectRawOutput(
-                  sessionID,
-                  "Quota unavailable\n\nNo quota providers detected. Make sure you are logged in to a supported provider (Copilot, OpenAI, etc.).\n\nRun /quota_status for diagnostics.",
-                );
-              } else {
-                await injectRawOutput(
-                  sessionID,
-                  `Quota unavailable\n\nProviders detected (${availableIds.join(", ")}) but returned no data. This may be a temporary API error.\n\nRun /quota_status for diagnostics.`,
-                );
-              }
+              await injectRawOutput(sessionID, await buildQuotaCommandUnavailableMessage(sessionID));
             }
             handled();
           }
