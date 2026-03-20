@@ -10,6 +10,7 @@ import {
   getEffectiveCursorIncludedApiUsd,
   getCursorPlanDisplayName,
   isCursorModelId,
+  isCursorProviderId,
 } from "../lib/cursor-pricing.js";
 import { inspectCursorOpenCodeIntegration } from "../lib/cursor-detection.js";
 import { getCurrentCursorUsageSummary } from "../lib/cursor-usage.js";
@@ -37,6 +38,7 @@ export const cursorProvider: QuotaProvider = {
       fallbackOnError: false,
     });
     if (availableViaProviderConfig) return true;
+    if (isCursorProviderId(ctx.config.currentProviderID)) return true;
     if (isCursorModelId(ctx.config.currentModel)) return true;
 
     const integration = await inspectCursorOpenCodeIntegration();

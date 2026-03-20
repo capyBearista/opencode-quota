@@ -119,9 +119,9 @@ vi.mock("../src/lib/alibaba-auth.js", () => ({
 vi.mock("../src/lib/cursor-detection.js", () => ({
   inspectCursorAuthPresence: vi.fn(async () => ({
     state: "present",
-    selectedPath: "/tmp/cursor/cli-config.json",
-    presentPaths: ["/tmp/cursor/cli-config.json"],
-    candidatePaths: ["/tmp/cursor/cli-config.json", "/tmp/cursor/auth.json"],
+    selectedPath: "/tmp/auth.json",
+    presentPaths: ["/tmp/auth.json"],
+    candidatePaths: ["/tmp/auth.json"],
   })),
   inspectCursorOpenCodeIntegration: vi.fn(async () => ({
     pluginEnabled: true,

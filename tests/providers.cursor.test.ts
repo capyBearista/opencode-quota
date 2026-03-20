@@ -94,7 +94,7 @@ describe("cursor provider", () => {
       api: { costUsd: 2, tokens: {}, messageCount: 1 },
       autoComposer: { costUsd: 0, tokens: {}, messageCount: 0 },
       total: { costUsd: 2, tokens: {}, messageCount: 2 },
-      unknownModels: [{ sourceModelID: "cursor-acp/future-model", messageCount: 1, tokens: {} }],
+      unknownModels: [{ sourceModelID: "cursor/future-model", messageCount: 1, tokens: {} }],
     });
 
     const out = await cursorProvider.fetch({
@@ -112,6 +112,25 @@ describe("cursor provider", () => {
     ]);
     expect(out.errors[0]?.label).toBe("Cursor");
     expect(out.errors[0]?.message).toContain("Unknown Cursor model ids");
+  });
+
+  it("treats the current Cursor provider id as an availability signal", async () => {
+    const { isAnyProviderIdAvailable } = await import("../src/lib/provider-availability.js");
+    const { inspectCursorOpenCodeIntegration } = await import("../src/lib/cursor-detection.js");
+    (isAnyProviderIdAvailable as any).mockResolvedValue(false);
+    (inspectCursorOpenCodeIntegration as any).mockResolvedValue({
+      pluginEnabled: false,
+      providerConfigured: false,
+      matchedPaths: [],
+      checkedPaths: ["/tmp/opencode.json"],
+    });
+
+    await expect(
+      cursorProvider.isAvailable({
+        client: { config: { providers: vi.fn() } },
+        config: { currentModel: "auto", currentProviderID: "cursor", cursorPlan: "none" },
+      } as any),
+    ).resolves.toBe(true);
   });
 
   it("treats cursor models or config-file integration as availability signals", async () => {

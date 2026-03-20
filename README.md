@@ -5,7 +5,7 @@
 - Automatic quota toasts after assistant responses
 - Manual `/quota` and `/tokens_*` commands for deeper local reporting with zero context window pollution
 
-**Quota provider supports**: GitHub Copilot, OpenAI (Plus/Pro), Cursor (ACP), Qwen Code, Alibaba Coding Plan, Chutes AI, Firmware AI, Google Antigravity, and Z.ai coding plan.
+**Quota provider supports**: GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, Chutes AI, Firmware AI, Google Antigravity, and Z.ai coding plan.
 
 **Token provider supports**: All models and providers in [models.dev](https://models.dev), plus deterministic local pricing for Cursor Auto/Composer and Cursor model aliases that are not on models.dev.
 
@@ -55,12 +55,23 @@ If you already use Copilot, OpenAI, Firmware, Chutes, or Z.ai in OpenCode, start
 
 ### Cursor
 
-Cursor model support requires the `opencode-cursor` [companion ACP plugin](https://github.com/Nomadcxx/opencode-cursor):
+Cursor model support requires the OAuth-based [`opencode-cursor`](https://github.com/ephraimduncan/opencode-cursor) plugin:
 
 ```jsonc
 {
-  "plugin": ["@rama_nigg/open-cursor", "@slkiser/opencode-quota"]
+  "plugin": ["opencode-cursor-oauth", "@slkiser/opencode-quota"],
+  "provider": {
+    "cursor": {
+      "name": "Cursor"
+    }
+  }
 }
+```
+
+Then authenticate once:
+
+```sh
+opencode auth login --provider cursor
 ```
 
 ### Google Antigravity
@@ -147,7 +158,7 @@ If Alibaba Coding Plan auth does not include a `tier`, you can set the fallback 
 | --- | --- | --- |
 | GitHub Copilot | Usually yes | Add `copilot-quota-token.json` only for managed org or enterprise billing |
 | OpenAI | Yes | None |
-| Cursor | Needs `opencode-cursor` | Optional `cursorPlan`, `cursorIncludedApiUsd`, and `cursorBillingCycleStartDay` for monthly API budget tracking |
+| Cursor | Needs `opencode-cursor-oauth` | Optional `cursorPlan`, `cursorIncludedApiUsd`, and `cursorBillingCycleStartDay` for monthly API budget tracking |
 | Qwen Code | Needs `opencode-qwencode-auth` | Local free-tier request estimation |
 | Alibaba Coding Plan | Yes | Local request-count estimation |
 | Firmware AI | Usually yes | Optional API key |
@@ -214,16 +225,17 @@ No extra setup is required if OpenCode already has OpenAI or ChatGPT auth config
 <details>
 <summary><strong>Cursor</strong></summary>
 
-Cursor support requires the `opencode-cursor` plugin and stays local-only and deterministic once `@rama_nigg/open-cursor` is installed in OpenCode.
+Cursor support now targets the OAuth-based [`opencode-cursor`](https://github.com/ephraimduncan/opencode-cursor) plugin. OpenCode should install `opencode-cursor-oauth`, define a `provider.cursor` stub, and authenticate with `opencode auth login --provider cursor`.
 
 Recommended install path:
 
-- Follow Option B from the upstream [`opencode-cursor` README](https://github.com/Nomadcxx/opencode-cursor).
-- Keep the Cursor model list in sync with `cursor-agent models`.
+- Add `opencode-cursor-oauth` and `@slkiser/opencode-quota` to `plugin`.
+- Add `provider.cursor` with `"name": "Cursor"` so OpenCode keeps the provider visible.
+- Run `opencode auth login --provider cursor` once.
 
 Current behavior:
 
-- Detects Cursor usage from OpenCode history when the current model or stored message model is `cursor-acp/*`
+- Detects Cursor usage from local OpenCode history when the current provider is `cursor` or the stored/current model id is `cursor/*`
 - `/tokens_*` maps Cursor API-pool models into official pricing and uses bundled static rates for `auto` and `composer*`
 - `/quota` and toasts estimate the current billing-cycle spend from local OpenCode history
 - Percentage remaining is shown only when you configure `cursorPlan` or `cursorIncludedApiUsd`
@@ -231,7 +243,9 @@ Current behavior:
 
 Notes:
 
+- Cursor OAuth and proxy traffic are used by OpenCode itself, but this plugin still computes quota and token output only from local `opencode.db`, local `auth.json`, and the bundled/runtime pricing snapshot
 - Session cookies and Cursor team APIs are not required for this local reporting path
+- Legacy `cursor-acp/*` history remains readable for older installs, but new installs should use the OAuth plugin workflow
 - Unknown future Cursor model ids are surfaced in `/quota_status` under Cursor diagnostics and `unknown_pricing`
 
 Example config for a personal Pro account:
@@ -456,7 +470,7 @@ If you are using an agent to install the plugin for you, the safe default is:
 
 Then verify with `/quota_status`.
 
-Only add explicit `enabledProviders` if you want to limit which providers are queried. Only add companion plugins when the user actually uses Google Antigravity or Qwen Code, and only add `@rama_nigg/open-cursor` when the user actually uses Cursor models in OpenCode.
+Only add explicit `enabledProviders` if you want to limit which providers are queried. Only add companion plugins when the user actually uses Google Antigravity, Qwen Code, or Cursor in OpenCode. For Cursor, use `opencode-cursor-oauth` plus the `provider.cursor` stub.
 
 ## License
 

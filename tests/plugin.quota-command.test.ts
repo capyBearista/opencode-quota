@@ -57,14 +57,14 @@ vi.mock("../src/lib/alibaba-auth.js", () => ({
   resolveAlibabaCodingPlanAuthCached: mocks.resolveAlibabaCodingPlanAuthCached,
 }));
 
-function createClient(modelID = "qwen-code/qwen3-coder-plus") {
+function createClient(modelID = "qwen-code/qwen3-coder-plus", providerID?: string) {
   return {
     config: {
       get: vi.fn().mockResolvedValue({ data: {} }),
       providers: vi.fn().mockResolvedValue({ data: { providers: [] } }),
     },
     session: {
-      get: vi.fn().mockResolvedValue({ data: { modelID } }),
+      get: vi.fn().mockResolvedValue({ data: { modelID, providerID } }),
       prompt: vi.fn().mockResolvedValue({}),
     },
     tui: {
@@ -136,7 +136,7 @@ describe("/quota command behavior", () => {
     mocks.getProviders.mockReturnValue([provider]);
 
     const { QuotaToastPlugin } = await import("../src/plugin.js");
-    const client = createClient("cursor-acp/auto");
+    const client = createClient("auto", "cursor");
     const hooks = await QuotaToastPlugin({ client } as any);
 
     await expect(
@@ -174,7 +174,7 @@ describe("/quota command behavior", () => {
     mocks.getProviders.mockReturnValue([provider]);
 
     const { QuotaToastPlugin } = await import("../src/plugin.js");
-    const client = createClient("cursor-acp/auto");
+    const client = createClient("auto", "cursor");
     const hooks = await QuotaToastPlugin({ client } as any);
 
     await expect(
@@ -298,7 +298,7 @@ describe("/quota command behavior", () => {
     mocks.getProviders.mockReturnValue([provider]);
 
     const { QuotaToastPlugin } = await import("../src/plugin.js");
-    const client = createClient("cursor-acp/auto");
+    const client = createClient("auto", "cursor");
     const hooks = await QuotaToastPlugin({ client } as any);
 
     await expect(

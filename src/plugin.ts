@@ -43,7 +43,7 @@ import {
   recordAlibabaCodingPlanCompletion,
   recordQwenCompletion,
 } from "./lib/qwen-local-quota.js";
-import { isCursorModelId } from "./lib/cursor-pricing.js";
+import { isCursorModelId, isCursorProviderId } from "./lib/cursor-pricing.js";
 import {
   parseOptionalJsonArgs,
   parseQuotaBetweenArgs,
@@ -81,6 +81,7 @@ interface OpencodeClient {
       data?: {
         parentID?: string;
         modelID?: string;
+        providerID?: string;
       };
     }>;
     prompt: (params: {
@@ -146,6 +147,11 @@ interface CommandExecuteInput {
 interface PluginConfigInput {
   command?: Record<string, { template: string; description: string }>;
 }
+
+type SessionModelMeta = {
+  modelID?: string;
+  providerID?: string;
+};
 
 // =============================================================================
 // Token Report Command Specification
@@ -402,7 +408,8 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     const cursorBillingCycleStartDay = ctx.config.cursorBillingCycleStartDay ?? "";
     const onlyCurrentModel = ctx.config.onlyCurrentModel ? "yes" : "no";
     const currentModel = ctx.config.currentModel ?? "";
-    return `${providerId}|style=${style}|googleModels=${googleModels}|alibabaTier=${alibabaCodingPlanTier}|cursorPlan=${cursorPlan}|cursorIncludedApiUsd=${cursorIncludedApiUsd}|cursorBillingCycleStartDay=${cursorBillingCycleStartDay}|onlyCurrentModel=${onlyCurrentModel}|currentModel=${currentModel}`;
+    const currentProviderID = ctx.config.currentProviderID ?? "";
+    return `${providerId}|style=${style}|googleModels=${googleModels}|alibabaTier=${alibabaCodingPlanTier}|cursorPlan=${cursorPlan}|cursorIncludedApiUsd=${cursorIncludedApiUsd}|cursorBillingCycleStartDay=${cursorBillingCycleStartDay}|onlyCurrentModel=${onlyCurrentModel}|currentModel=${currentModel}|currentProviderID=${currentProviderID}`;
   }
 
   async function fetchProviderWithCache(params: {
@@ -510,7 +517,8 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   ): Promise<boolean> {
     if (trigger !== "question") return false;
 
-    const currentModel = await getCurrentModel(sessionID);
+    const currentSession = await getSessionModelMeta(sessionID);
+    const currentModel = currentSession.modelID;
     if (isQwenCodeModelId(currentModel)) {
       const plan = await resolveQwenLocalPlanCached();
       return plan.state === "qwen_free" && isProviderEnabled("qwen-code");
@@ -524,7 +532,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       return plan.state === "configured" && isProviderEnabled("alibaba-coding-plan");
     }
 
-    if (isCursorModelId(currentModel)) {
+    if (isCursorProviderId(currentSession.providerID) || isCursorModelId(currentModel)) {
       return isProviderEnabled("cursor");
     }
 
@@ -652,20 +660,40 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   }
 
   /**
-   * Get the current model from the active session.
+   * Get the current model metadata from the active session.
    *
    * Only uses session-scoped model lookup. Does NOT fall back to
    * client.config.get() because that returns the global/default model
    * which can be stale across sessions.
    */
-  async function getCurrentModel(sessionID?: string): Promise<string | undefined> {
-    if (!sessionID) return undefined;
+  async function getSessionModelMeta(sessionID?: string): Promise<SessionModelMeta> {
+    if (!sessionID) return {};
     try {
       const sessionResp = await typedClient.session.get({ path: { id: sessionID } });
-      return sessionResp.data?.modelID;
+      return {
+        modelID: sessionResp.data?.modelID,
+        providerID: sessionResp.data?.providerID,
+      };
     } catch {
-      return undefined;
+      return {};
     }
+  }
+
+  async function getCurrentModel(sessionID?: string): Promise<string | undefined> {
+    if (!sessionID) return undefined;
+    return (await getSessionModelMeta(sessionID)).modelID;
+  }
+
+  function matchesProviderCurrentSelection(params: {
+    provider: QuotaProvider;
+    currentModel?: string;
+    currentProviderID?: string;
+  }): boolean {
+    if (params.provider.id === "cursor" && isCursorProviderId(params.currentProviderID)) {
+      return true;
+    }
+    if (!params.currentModel) return false;
+    return params.provider.matchesCurrentModel ? params.provider.matchesCurrentModel(params.currentModel) : true;
   }
 
   function formatDebugInfo(params: {
@@ -730,8 +758,11 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     }
 
     let currentModel: string | undefined;
+    let currentProviderID: string | undefined;
     if (config.onlyCurrentModel) {
-      currentModel = await getCurrentModel(sessionID);
+      const currentSession = await getSessionModelMeta(sessionID);
+      currentModel = currentSession.modelID;
+      currentProviderID = currentSession.providerID;
     }
 
     const ctx: QuotaProviderContext = {
@@ -745,13 +776,14 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         toastStyle: config.toastStyle,
         onlyCurrentModel: config.onlyCurrentModel,
         currentModel,
+        currentProviderID,
       },
     };
 
     const filtered =
-      config.onlyCurrentModel && currentModel
+      config.onlyCurrentModel && (currentModel || isCursorProviderId(currentProviderID))
         ? providers.filter((p) =>
-            p.matchesCurrentModel ? p.matchesCurrentModel(currentModel!) : true,
+            matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID }),
           )
         : providers;
 
@@ -973,8 +1005,11 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     if (!isAutoMode && providers.length === 0) return null;
 
     let currentModel: string | undefined;
+    let currentProviderID: string | undefined;
     if (config.onlyCurrentModel && sessionID) {
-      currentModel = await getCurrentModel(sessionID);
+      const currentSession = await getSessionModelMeta(sessionID);
+      currentModel = currentSession.modelID;
+      currentProviderID = currentSession.providerID;
     }
 
     const ctx: QuotaProviderContext = {
@@ -989,10 +1024,18 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         toastStyle: "grouped" as const,
         onlyCurrentModel: config.onlyCurrentModel,
         currentModel,
+        currentProviderID,
       },
     };
 
-    const avail = await Promise.all(providers.map(async (p) => ({ p, ok: await p.isAvailable(ctx) })));
+    const filtered =
+      config.onlyCurrentModel && (currentModel || isCursorProviderId(currentProviderID))
+        ? providers.filter((p) =>
+            matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID }),
+          )
+        : providers;
+
+    const avail = await Promise.all(filtered.map(async (p) => ({ p, ok: await p.isAvailable(ctx) })));
     const active = avail.filter((x) => x.ok).map((x) => x.p);
     if (active.length === 0) return null;
 
@@ -1076,7 +1119,9 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     if (!config.enabled) return null;
     await kickPricingRefresh({ reason: "status", maxWaitMs: 750 });
 
-    const currentModel = await getCurrentModel(params.sessionID);
+    const currentSession = await getSessionModelMeta(params.sessionID);
+    const currentModel = currentSession.modelID;
+    const currentProviderID = currentSession.providerID;
     const sessionModelLookup: "ok" | "not_found" | "no_session" = !params.sessionID
       ? "no_session"
       : currentModel
@@ -1099,6 +1144,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
               cursorIncludedApiUsd: config.cursorIncludedApiUsd,
               cursorBillingCycleStartDay: config.cursorBillingCycleStartDay,
               currentModel,
+              currentProviderID,
             },
           });
         } catch {
@@ -1110,8 +1156,8 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           enabled: isAutoMode ? ok : config.enabledProviders.includes(p.id),
           available: ok,
           matchesCurrentModel:
-            typeof p.matchesCurrentModel === "function" && currentModel
-              ? p.matchesCurrentModel(currentModel)
+            currentModel || isCursorProviderId(currentProviderID)
+              ? matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID })
               : undefined,
         };
       }),
@@ -1437,7 +1483,8 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       if (!config.enabled) return;
 
           if (isSuccessfulQuestionExecution(output)) {
-        const model = await getCurrentModel(input.sessionID);
+        const sessionMeta = await getSessionModelMeta(input.sessionID);
+        const model = sessionMeta.modelID;
         try {
           if (isQwenCodeModelId(model)) {
             const plan = await resolveQwenLocalPlanCached();
@@ -1454,13 +1501,14 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
               await recordAlibabaCodingPlanCompletion();
               clearQuotaCommandCache();
             }
-          } else if (isCursorModelId(model)) {
+          } else if (isCursorProviderId(sessionMeta.providerID) || isCursorModelId(model)) {
             clearQuotaCommandCache();
           }
         } catch (err) {
           await log("Failed to record local request-plan quota completion", {
             error: err instanceof Error ? err.message : String(err),
             model,
+            providerID: sessionMeta.providerID,
           });
         }
       }

@@ -111,15 +111,15 @@ describe("resolvePricingKey snapshot coverage", () => {
 
   it("maps cursor local and api-pool models into deterministic pricing keys", () => {
     const auto = resolvePricingKey({
-      providerID: "cursor-acp",
-      modelID: "cursor-acp/auto",
+      providerID: "cursor",
+      modelID: "cursor/auto",
     });
     expect(auto.ok).toBe(true);
     if (!auto.ok) return;
     expect(auto.key).toEqual({ provider: "cursor", model: "auto" });
 
     const autoBare = resolvePricingKey({
-      providerID: "cursor-acp",
+      providerID: "cursor",
       modelID: "auto",
     });
     expect(autoBare.ok).toBe(true);
@@ -127,71 +127,79 @@ describe("resolvePricingKey snapshot coverage", () => {
     expect(autoBare.key).toEqual({ provider: "cursor", model: "auto" });
 
     const autoDefault = resolvePricingKey({
-      providerID: "cursor-acp",
+      providerID: "cursor",
       modelID: "default[]",
     });
     expect(autoDefault.ok).toBe(true);
     if (!autoDefault.ok) return;
     expect(autoDefault.key).toEqual({ provider: "cursor", model: "auto" });
 
-    const composer1 = resolvePricingKey({
+    const legacyAuto = resolvePricingKey({
       providerID: "cursor-acp",
-      modelID: "cursor-acp/composer-1",
+      modelID: "cursor-acp/auto",
+    });
+    expect(legacyAuto.ok).toBe(true);
+    if (!legacyAuto.ok) return;
+    expect(legacyAuto.key).toEqual({ provider: "cursor", model: "auto" });
+
+    const composer1 = resolvePricingKey({
+      providerID: "cursor",
+      modelID: "cursor/composer-1",
     });
     expect(composer1.ok).toBe(true);
     if (!composer1.ok) return;
     expect(composer1.key).toEqual({ provider: "cursor", model: "composer-1" });
 
     const composer15 = resolvePricingKey({
-      providerID: "cursor-acp",
-      modelID: "cursor-acp/composer-1.5",
+      providerID: "cursor",
+      modelID: "cursor/composer-1.5",
     });
     expect(composer15.ok).toBe(true);
     if (!composer15.ok) return;
     expect(composer15.key).toEqual({ provider: "cursor", model: "composer-1.5" });
 
     const composer2 = resolvePricingKey({
-      providerID: "cursor-acp",
-      modelID: "cursor-acp/composer-2",
+      providerID: "cursor",
+      modelID: "cursor/composer-2",
     });
     expect(composer2.ok).toBe(true);
     if (!composer2.ok) return;
     expect(composer2.key).toEqual({ provider: "cursor", model: "composer-2" });
 
     const composer2Fast = resolvePricingKey({
-      providerID: "cursor-acp",
-      modelID: "cursor-acp/composer-2-fast",
+      providerID: "cursor",
+      modelID: "cursor/composer-2-fast",
     });
     expect(composer2Fast.ok).toBe(true);
     if (!composer2Fast.ok) return;
     expect(composer2Fast.key).toEqual({ provider: "cursor", model: "composer-2-fast" });
 
     for (const unsupportedModelID of [
-      "cursor-acp/composer",
-      "cursor-acp/composer-fast",
-      "cursor-acp/composer-2fast",
-      "cursor-acp/composer-2-fast-thinking",
-      "cursor-acp/composer-3",
+      "cursor/composer",
+      "cursor/composer-fast",
+      "cursor/composer-2fast",
+      "cursor/composer-2-fast-thinking",
+      "cursor/composer-3",
     ]) {
       expect(
         resolvePricingKey({
-          providerID: "cursor-acp",
+          providerID: "cursor",
           modelID: unsupportedModelID,
         }).ok,
       ).toBe(false);
     }
 
     const gpt = resolvePricingKey({
-      providerID: "cursor-acp",
-      modelID: "cursor-acp/gpt-5.4-high",
+      providerID: "cursor",
+      modelID: "gpt-5.4-high",
     });
     expect(gpt.ok).toBe(true);
     if (!gpt.ok) return;
     expect(gpt.key).toEqual({ provider: "openai", model: "gpt-5.4" });
 
     const anthropic = resolvePricingKey({
-      providerID: "cursor-acp",
-      modelID: "cursor-acp/sonnet-4.6-thinking",
+      providerID: "cursor",
+      modelID: "cursor/sonnet-4.6-thinking",
     });
     expect(anthropic.ok).toBe(true);
     if (!anthropic.ok) return;
@@ -234,8 +242,8 @@ describe("resolvePricingKey snapshot coverage", () => {
       if (!target || target.providerHint === "cursor") continue;
 
       const resolved = resolvePricingKey({
-        providerID: "cursor-acp",
-        modelID: `cursor-acp/${alias}`,
+        providerID: "cursor",
+        modelID: `cursor/${alias}`,
       });
 
       if (!resolved.ok) {

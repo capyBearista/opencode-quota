@@ -4,8 +4,13 @@ import { homedir, platform } from "os";
 import { join } from "path";
 
 import { parseJsonOrJsonc } from "./jsonc.js";
+import { getAuthPaths } from "./opencode-auth.js";
 import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
-import { CURSOR_OPENCODE_PROVIDER_ID } from "./cursor-pricing.js";
+import {
+  CURSOR_LEGACY_PROVIDER_ID,
+  CURSOR_PROVIDER_ID,
+} from "./cursor-pricing.js";
+import type { AuthData, CursorOAuthAuthData } from "./types.js";
 
 export interface CursorAuthPresence {
   state: "missing" | "present" | "invalid";
@@ -52,13 +57,53 @@ export function getCursorAuthCandidatePaths(): string[] {
   return dedupe(paths);
 }
 
+function hasNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidCursorOAuthEntry(value: unknown): value is CursorOAuthAuthData {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return entry.type === "oauth" && (hasNonEmptyString(entry.refresh) || hasNonEmptyString(entry.access));
+}
+
 export async function inspectCursorAuthPresence(): Promise<CursorAuthPresence> {
-  const candidatePaths = getCursorAuthCandidatePaths();
+  const authCandidatePaths = getAuthPaths();
+  const legacyCandidatePaths = getCursorAuthCandidatePaths();
+  const candidatePaths = dedupe([...authCandidatePaths, ...legacyCandidatePaths]);
   const presentPaths = candidatePaths.filter((path) => existsSync(path));
   let invalidPath: string | undefined;
   let invalidError: string | undefined;
 
-  for (const path of presentPaths) {
+  for (const path of authCandidatePaths) {
+    if (!existsSync(path)) continue;
+
+    try {
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw) as AuthData;
+      const cursorAuth = parsed?.cursor;
+
+      if (!cursorAuth) continue;
+      if (isValidCursorOAuthEntry(cursorAuth)) {
+        return {
+          state: "present",
+          selectedPath: path,
+          presentPaths,
+          candidatePaths,
+        };
+      }
+
+      invalidPath ??= path;
+      invalidError ??= "Cursor auth entry in auth.json is missing a valid oauth token payload";
+    } catch (error) {
+      invalidPath ??= path;
+      invalidError ??= error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  for (const path of legacyCandidatePaths) {
+    if (!existsSync(path)) continue;
+
     try {
       const raw = await readFile(path, "utf8");
       const parsed = JSON.parse(raw);
@@ -97,16 +142,23 @@ function pluginIncludesCursor(value: unknown): boolean {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return (
-    normalized === CURSOR_OPENCODE_PROVIDER_ID ||
+    normalized === "opencode-cursor-oauth" ||
+    normalized === "opencode-cursor" ||
+    normalized === CURSOR_LEGACY_PROVIDER_ID ||
     normalized === "open-cursor" ||
     normalized === "@rama_nigg/open-cursor" ||
+    normalized.endsWith("/opencode-cursor-oauth") ||
+    normalized.endsWith("/opencode-cursor") ||
     normalized.endsWith("/open-cursor")
   );
 }
 
 function providerConfigIncludesCursor(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
-  return Object.prototype.hasOwnProperty.call(value, CURSOR_OPENCODE_PROVIDER_ID);
+  return (
+    Object.prototype.hasOwnProperty.call(value, CURSOR_PROVIDER_ID) ||
+    Object.prototype.hasOwnProperty.call(value, CURSOR_LEGACY_PROVIDER_ID)
+  );
 }
 
 export async function inspectCursorOpenCodeIntegration(): Promise<CursorOpenCodeIntegration> {

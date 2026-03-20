@@ -126,6 +126,14 @@ export interface QwenOAuthAuthData {
   [key: string]: unknown;
 }
 
+export interface CursorOAuthAuthData {
+  type: string;
+  access?: string;
+  refresh?: string;
+  expires?: number;
+  [key: string]: unknown;
+}
+
 export interface AlibabaAuthData {
   type: string;
   key?: string;
@@ -226,6 +234,7 @@ export interface AuthData {
     type: string;
     key?: string;
   };
+  cursor?: CursorOAuthAuthData;
   "opencode-qwencode-auth"?: QwenOAuthAuthData;
   alibaba?: AlibabaAuthData;
   "alibaba-coding-plan"?: AlibabaAuthData;

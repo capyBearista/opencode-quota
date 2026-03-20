@@ -36,14 +36,14 @@ describe("cursor usage", () => {
     (iterAssistantMessages as any).mockResolvedValue([
       {
         role: "assistant",
-        providerID: "cursor-acp",
-        modelID: "cursor-acp/auto",
+        providerID: "cursor",
+        modelID: "auto",
         tokens: { input: 1_000_000, output: 500_000, cache: { read: 0, write: 0 } },
       },
       {
         role: "assistant",
-        providerID: "cursor-acp",
-        modelID: "cursor-acp/gpt-5.4-high",
+        providerID: "cursor",
+        modelID: "gpt-5.4-high",
         tokens: { input: 1_000_000, output: 1_000_000, cache: { read: 0, write: 0 } },
       },
       {
@@ -66,5 +66,26 @@ describe("cursor usage", () => {
     expect(summary.total.messageCount).toBe(3);
     expect(summary.unknownModels).toHaveLength(1);
     expect(summary.unknownModels[0]?.sourceModelID).toBe("cursor-acp/unknown-future-model");
+  });
+
+  it("keeps legacy cursor-acp history readable", async () => {
+    const { iterAssistantMessages } = await import("../src/lib/opencode-storage.js");
+    (iterAssistantMessages as any).mockResolvedValue([
+      {
+        role: "assistant",
+        providerID: "cursor-acp",
+        modelID: "cursor-acp/composer-1",
+        tokens: { input: 1_000_000, output: 500_000, cache: { read: 0, write: 0 } },
+      },
+    ]);
+
+    const summary = await getCurrentCursorUsageSummary({
+      nowMs: new Date(2026, 2, 19, 10, 0, 0, 0).getTime(),
+      billingCycleStartDay: 7,
+    });
+
+    expect(summary.autoComposer.messageCount).toBe(1);
+    expect(summary.api.messageCount).toBe(0);
+    expect(summary.unknownModels).toEqual([]);
   });
 });

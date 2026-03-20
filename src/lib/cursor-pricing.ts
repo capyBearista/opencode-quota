@@ -14,7 +14,8 @@ export type CursorResolvedModel =
   | { kind: "unknown" };
 
 export const CURSOR_PROVIDER_ID = "cursor";
-export const CURSOR_OPENCODE_PROVIDER_ID = "cursor-acp";
+export const CURSOR_LEGACY_PROVIDER_ID = "cursor-acp";
+export const CURSOR_OPENCODE_PROVIDER_ID = CURSOR_LEGACY_PROVIDER_ID;
 
 export const CURSOR_INCLUDED_API_USD_BY_PLAN: Readonly<Record<Exclude<CursorQuotaPlan, "none">, number>> = {
   pro: 20,
@@ -24,7 +25,7 @@ export const CURSOR_INCLUDED_API_USD_BY_PLAN: Readonly<Record<Exclude<CursorQuot
 
 const CURSOR_PROVIDER_IDS = new Set([
   CURSOR_PROVIDER_ID,
-  CURSOR_OPENCODE_PROVIDER_ID,
+  CURSOR_LEGACY_PROVIDER_ID,
   "open-cursor",
   "@rama_nigg/open-cursor",
 ]);
@@ -98,7 +99,10 @@ export function isCursorProviderId(raw?: string): boolean {
 export function isCursorModelId(raw?: string): boolean {
   if (!raw || typeof raw !== "string") return false;
   const normalized = raw.trim().toLowerCase();
-  return normalized.startsWith(`${CURSOR_OPENCODE_PROVIDER_ID}/`) || normalized.startsWith("cursor/");
+  return (
+    normalized.startsWith(`${CURSOR_PROVIDER_ID}/`) ||
+    normalized.startsWith(`${CURSOR_LEGACY_PROVIDER_ID}/`)
+  );
 }
 
 export function extractCursorModelPart(rawModelId: string): string {

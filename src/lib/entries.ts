@@ -102,6 +102,7 @@ export interface QuotaProviderContext {
     toastStyle?: "classic" | "grouped";
     onlyCurrentModel?: boolean;
     currentModel?: string;
+    currentProviderID?: string;
   };
 }
 
