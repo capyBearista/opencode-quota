@@ -5,7 +5,7 @@
 - Automatic quota toasts after assistant responses
 - Manual `/quota`, `/pricing_refresh`, and `/tokens_*` commands for deeper local reporting with zero context window pollution
 
-**Quota providers**: GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, Chutes AI, Firmware AI, Google Antigravity, Z.ai coding plan, and NanoGPT.
+**Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, Chutes AI, Firmware AI, Google Antigravity, Z.ai coding plan, and NanoGPT.
 
 **Token reports**: All models and providers in [models.dev](https://models.dev), plus deterministic local pricing for Cursor Auto/Composer and Cursor model aliases that are not on models.dev.
 
@@ -78,6 +78,7 @@ That is enough for most installs. Providers are auto-detected from your existing
 
 | Provider | Auto setup | How it works |
 | --- | --- | --- |
+| **Anthropic (Claude)** | Usually | Claude Code credentials via `~/.claude/.credentials.json` or macOS Keychain. Requires Claude Code installed and authenticated (`claude login`). Surfaces 5-hour and 7-day rate-limit windows. |
 | **GitHub Copilot** | Usually | OpenCode auth; PAT only for managed billing. |
 | **OpenAI** | Yes | OpenCode auth. |
 | **Cursor** | Needs [quick setup](#cursor-quick-setup) | Companion auth plugin + `provider.cursor`. |
@@ -173,6 +174,34 @@ For behavior details and troubleshooting, see [Qwen Code notes](#qwen-code-notes
 There is no `/token` command. The reporting commands are the `/tokens_*` family.
 
 ## Provider-Specific Notes
+
+<a id="anthropic-notes"></a>
+<details>
+<summary><strong>Anthropic (Claude)</strong></summary>
+
+Quota is fetched from `GET https://api.anthropic.com/api/oauth/usage` using Claude Code's OAuth credentials. The plugin exposes two rate-limit windows: 5-hour and 7-day.
+
+Credential resolution order:
+
+1. `~/.claude/.credentials.json` → `claudeAiOauth.accessToken`
+2. macOS Keychain service `"Claude Code-credentials"` (macOS only)
+3. `CLAUDE_CODE_OAUTH_TOKEN` environment variable
+
+When the token is near expiry (within 5 minutes), the plugin invokes the `claude` CLI to trigger a silent background refresh before the API call is made.
+
+**Prerequisites:** Claude Code must be installed and authenticated. Run `claude` at least once to create the credentials file.
+
+**Troubleshooting:**
+
+| Problem | Solution |
+| --- | --- |
+| "No credentials found" | Run `claude login` to authenticate with Claude Code |
+| "Invalid or expired token" | Run `claude login` to re-authenticate |
+| Plugin not detected | Confirm OpenCode is configured with the `anthropic` provider |
+
+The credential loading approach in this provider is based on work from [claude-lens](https://github.com/Astro-Han/claude-lens) (a statusline plugin for Claude Code) and [ClaudeBar](https://github.com/tddworks/claudebar) (a macOS menu-bar app for quota monitoring).
+
+</details>
 
 <a id="github-copilot-notes"></a>
 <details>
@@ -438,6 +467,8 @@ MIT
 ## Remarks
 
 OpenCode Quota is not built by the OpenCode team and is not affiliated with OpenCode or any provider listed above.
+
+The credential loading and API approach for the Anthropic provider is based on prior art from [claude-lens](https://github.com/Astro-Han/claude-lens) by Astro-Han and [ClaudeBar](https://github.com/tddworks/claudebar) by tddworks.
 
 ## Star History
 
