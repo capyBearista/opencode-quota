@@ -5,7 +5,7 @@
 - Automatic quota toasts after assistant responses
 - Manual `/quota`, `/pricing_refresh`, and `/tokens_*` commands for deeper local reporting with zero context window pollution
 
-**Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, Chutes AI, Firmware AI, Google Antigravity, Z.ai coding plan, and NanoGPT.
+**Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, MiniMax Coding Plan, Chutes AI, Firmware AI, Google Antigravity, Z.ai coding plan, and NanoGPT.
 
 **Token reports**: All models and providers in [models.dev](https://models.dev), plus deterministic local pricing for Cursor Auto/Composer and Cursor model aliases that are not on models.dev.
 
@@ -89,6 +89,7 @@ That is enough for most installs. Providers are auto-detected from your existing
 | **NanoGPT** | Usually | User/global OpenCode config, env, or auth.json. |
 | **Google Antigravity** | Needs [quick setup](#google-antigravity-quick-setup) | Companion auth plugin. |
 | **Z.ai** | Yes | OpenCode auth. |
+| **MiniMax Coding Plan** | Yes | Existing OpenCode provider config + auth.json `minimax-coding-plan` section. |
 
 <a id="anthropic-quick-setup"></a>
 <details>
@@ -314,6 +315,31 @@ Example fallback tier:
   }
 }
 ```
+
+</details>
+
+
+<a id="minimax-coding-plan-notes"></a>
+<details>
+<summary><strong>MiniMax Coding Plan</strong></summary>
+
+If OpenCode is already configured with the `minimax-coding-plan` provider and your `auth.json` has a `minimax-coding-plan` entry, quota detection works automatically. No additional plugin is required.
+
+The plugin reads `key` first and falls back to `access` from that auth entry. Quota is fetched from the MiniMax API using those stored credentials.
+
+Example `auth.json` entry:
+
+```json
+{
+  "minimax-coding-plan": {
+    "type": "api",
+    "key": "YOUR_MINIMAX_API_KEY"
+  }
+}
+```
+
+- `MiniMax-M*` models — rolling 5-hour interval + weekly
+- `/quota_status` shows auth detection, API-key diagnostics, live quota state, and endpoint errors
 
 </details>
 
