@@ -12,7 +12,7 @@ import { DEFAULT_CONFIG } from "./lib/types.js";
 import { loadConfig, createLoadConfigMeta, type LoadConfigMeta } from "./lib/config.js";
 import { getOrFetchWithCacheControl } from "./lib/cache.js";
 import { formatQuotaRows } from "./lib/format.js";
-import { formatQuotaCommandBody } from "./lib/quota-command-format.js";
+import { formatQuotaCommand } from "./lib/quota-command-format.js";
 import { getProviders } from "./providers/registry.js";
 import type {
   QuotaProvider,
@@ -318,10 +318,16 @@ function isTokenReportCommand(cmd: string): cmd is TokenReportCommandId {
 
 const LIVE_LOCAL_USAGE_PROVIDER_IDS = new Set(["qwen-code", "alibaba-coding-plan", "cursor"]);
 
+type QuotaCommandRenderData = {
+  entries: QuotaToastEntry[];
+  errors: QuotaToastError[];
+  sessionTokens?: SessionTokensData;
+};
+
 type QuotaCommandCacheEntry = {
-  body: string;
+  data?: QuotaCommandRenderData;
   timestamp: number;
-  inFlight?: Promise<string | null>;
+  inFlight?: Promise<QuotaCommandRenderData | null>;
 };
 
 type QuotaCommandCacheStore = Map<string, QuotaCommandCacheEntry>;
@@ -791,11 +797,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     }
   }
 
-  async function getCurrentModel(sessionID?: string): Promise<string | undefined> {
-    if (!sessionID) return undefined;
-    return (await getSessionModelMeta(sessionID)).modelID;
-  }
-
   function matchesProviderCurrentSelection(params: {
     provider: QuotaProvider;
     currentModel?: string;
@@ -1229,10 +1230,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     }
   }
 
-  async function fetchQuotaCommandBody(
+  async function fetchQuotaCommandData(
     trigger: string,
     params: QuotaCommandRequestContext = {},
-  ): Promise<string | null> {
+  ): Promise<QuotaCommandRenderData | null> {
     const selection = await resolveQuotaCommandSelection(params);
     if (!selection) return null;
 
@@ -1248,7 +1249,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       ctx,
       ttlMs: config.minIntervalMs,
     });
-    const entries = results.flatMap((r) => r.entries) as any[];
+    const entries = results.flatMap((r) => r.entries) as QuotaToastEntry[];
     const errors = results.flatMap((r) => r.errors);
 
     for (let i = 0; i < active.length; i++) {
@@ -1281,12 +1282,8 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       lastSessionTokenError = stResult.error;
     }
 
-    if (entries.length === 0) {
-      if (errors.length === 0 && !sessionTokens) return null;
-      return formatQuotaCommandBody({ entries, errors, sessionTokens });
-    }
-
-    return formatQuotaCommandBody({ entries, errors, sessionTokens });
+    if (entries.length === 0 && errors.length === 0 && !sessionTokens) return null;
+    return { entries, errors, sessionTokens };
   }
 
   async function buildQuotaReport(params: {
@@ -1507,8 +1504,8 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       sessionID,
       quotaRequestContext.sessionMeta,
     );
-    const body = bypassCommandCache
-      ? await fetchQuotaCommandBody("command:/quota", quotaRequestContext)
+    const reportData = bypassCommandCache
+      ? await fetchQuotaCommandData("command:/quota", quotaRequestContext)
       : await (async () => {
           const quotaCache = getQuotaCommandCache();
           pruneQuotaCommandCache(config.minIntervalMs, now);
@@ -1516,10 +1513,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           const cacheKey = buildQuotaCommandCacheKey(quotaRequestContext);
           const cachedEntry = quotaCache.get(cacheKey);
           if (cachedEntry?.timestamp && now - cachedEntry.timestamp < config.minIntervalMs) {
-            return cachedEntry.body;
+            return cachedEntry.data ?? null;
           }
 
-          const cacheEntry = cachedEntry ?? { body: "", timestamp: 0 };
+          const cacheEntry: QuotaCommandCacheEntry = cachedEntry ?? { timestamp: 0 };
           if (!cachedEntry) {
             quotaCache.set(cacheKey, cacheEntry);
           }
@@ -1527,25 +1524,25 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           return await (cacheEntry.inFlight ??
             (cacheEntry.inFlight = (async () => {
               try {
-                const freshBody = await fetchQuotaCommandBody(
+                const freshData = await fetchQuotaCommandData(
                   "command:/quota",
                   quotaRequestContext,
                 );
-                if (freshBody) {
-                  cacheEntry.body = freshBody;
+                if (freshData) {
+                  cacheEntry.data = freshData;
                   cacheEntry.timestamp = Date.now();
                 }
-                return freshBody;
+                return freshData;
               } finally {
                 cacheEntry.inFlight = undefined;
-                if (!cacheEntry.body && cacheEntry.timestamp <= 0) {
+                if (!cacheEntry.data && cacheEntry.timestamp <= 0) {
                   quotaCache.delete(cacheKey);
                 }
               }
             })()));
         })();
 
-    if (!body) {
+    if (!reportData) {
       if (!configLoaded) {
         return await injectCommandOutputAndHandle(
           sessionID,
@@ -1564,11 +1561,13 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       );
     }
 
-    const heading = renderCommandHeading({
-      title: "Quota (/quota)",
-      generatedAtMs,
-    });
-    return await injectCommandOutputAndHandle(sessionID, `${heading}\n\n${body}`);
+    return await injectCommandOutputAndHandle(
+      sessionID,
+      formatQuotaCommand({
+        ...reportData,
+        generatedAtMs,
+      }),
+    );
   }
 
   async function handlePricingRefreshSlashCommand(input: CommandExecuteInput): Promise<never> {

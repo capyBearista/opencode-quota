@@ -40,7 +40,7 @@ function getGroupedLeftText(entry: QuotaToastEntry): string {
   return right ? `${label} ${right}` : label;
 }
 
-export function formatQuotaCommandBody(params: {
+function formatQuotaCommandBody(params: {
   entries: QuotaToastEntry[];
   errors: QuotaToastError[];
   sessionTokens?: SessionTokensData;

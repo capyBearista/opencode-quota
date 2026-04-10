@@ -10,6 +10,11 @@ import {
   resolveCursorModel,
 } from "./cursor-pricing.js";
 import { calculateUsdFromTokenBuckets } from "./token-cost.js";
+import {
+  addTokenBuckets,
+  emptyTokenBuckets,
+  tokenBucketsFromMessage,
+} from "./token-buckets.js";
 
 export interface CursorCycleWindow {
   sinceMs: number;
@@ -32,38 +37,12 @@ export interface CursorUsageSummary {
   unknownModels: Array<{ sourceModelID: string; messageCount: number; tokens: TokenBuckets }>;
 }
 
-function emptyBuckets(): TokenBuckets {
-  return { input: 0, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 };
-}
-
 function emptyUsageBucket(): CursorUsageBucket {
-  return { costUsd: 0, tokens: emptyBuckets(), messageCount: 0 };
-}
-
-function addBuckets(a: TokenBuckets, b: TokenBuckets): TokenBuckets {
-  return {
-    input: a.input + b.input,
-    output: a.output + b.output,
-    reasoning: a.reasoning + b.reasoning,
-    cache_read: a.cache_read + b.cache_read,
-    cache_write: a.cache_write + b.cache_write,
-  };
-}
-
-function messageBuckets(msg: OpenCodeMessage): TokenBuckets {
-  const t = msg.tokens;
-  if (!t) return emptyBuckets();
-  return {
-    input: typeof t.input === "number" ? t.input : 0,
-    output: typeof t.output === "number" ? t.output : 0,
-    reasoning: typeof t.reasoning === "number" ? t.reasoning : 0,
-    cache_read: typeof t.cache?.read === "number" ? t.cache.read : 0,
-    cache_write: typeof t.cache?.write === "number" ? t.cache.write : 0,
-  };
+  return { costUsd: 0, tokens: emptyTokenBuckets(), messageCount: 0 };
 }
 
 function accumulateBucket(bucket: CursorUsageBucket, tokens: TokenBuckets, costUsd: number): void {
-  bucket.tokens = addBuckets(bucket.tokens, tokens);
+  bucket.tokens = addTokenBuckets(bucket.tokens, tokens);
   bucket.costUsd += costUsd;
   bucket.messageCount += 1;
 }
@@ -125,7 +104,7 @@ export async function getCurrentCursorUsageSummary(params?: {
     if (!isCursorMessage(msg)) continue;
 
     const sourceModelID = msg.modelID ?? "unknown";
-    const tokens = messageBuckets(msg);
+    const tokens = tokenBucketsFromMessage(msg);
     const resolved = resolveCursorModel(sourceModelID);
 
     if (resolved.kind === "local") {
@@ -153,11 +132,11 @@ export async function getCurrentCursorUsageSummary(params?: {
       }
     }
 
-    total.tokens = addBuckets(total.tokens, tokens);
+    total.tokens = addTokenBuckets(total.tokens, tokens);
     total.messageCount += 1;
     const existing = unknownModels.get(sourceModelID);
     if (existing) {
-      existing.tokens = addBuckets(existing.tokens, tokens);
+      existing.tokens = addTokenBuckets(existing.tokens, tokens);
       existing.messageCount += 1;
     } else {
       unknownModels.set(sourceModelID, { sourceModelID, messageCount: 1, tokens });

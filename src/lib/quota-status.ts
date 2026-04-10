@@ -47,6 +47,7 @@ import {
 } from "./opencode-storage.js";
 import { aggregateUsage } from "./quota-stats.js";
 import { fmtUsdAmount, renderCommandHeading } from "./format-utils.js";
+import { totalTokenBuckets } from "./token-buckets.js";
 import { inspectCursorAuthPresence, inspectCursorOpenCodeIntegration } from "./cursor-detection.js";
 import { getCurrentCursorUsageSummary } from "./cursor-usage.js";
 import { sanitizeDisplayText } from "./display-sanitize.js";
@@ -75,16 +76,6 @@ async function pathExists(path: string): Promise<boolean> {
 
 function fmtInt(n: number): string {
   return Math.trunc(n).toLocaleString("en-US");
-}
-
-function tokensTotal(t: {
-  input: number;
-  output: number;
-  reasoning: number;
-  cache_read: number;
-  cache_write: number;
-}): number {
-  return t.input + t.output + t.reasoning + t.cache_read + t.cache_write;
 }
 
 type PricingCoverageByProvider = {
@@ -829,13 +820,13 @@ export async function buildQuotaStatusReport(params: {
     lines.push("- none");
   } else {
     lines.push(
-      `- keys: ${fmtInt(agg.unpriced.length)} tokens_total=${fmtInt(tokensTotal(agg.totals.unpriced))}`,
+      `- keys: ${fmtInt(agg.unpriced.length)} tokens_total=${fmtInt(totalTokenBuckets(agg.totals.unpriced))}`,
     );
     for (const row of agg.unpriced.slice(0, STATUS_SAMPLE_LIMIT)) {
       const src = `${row.key.sourceProviderID}/${row.key.sourceModelID}`;
       const mapped = `${row.key.mappedProvider}/${row.key.mappedModel}`;
       lines.push(
-        `- ${src} mapped=${mapped} tokens=${fmtInt(tokensTotal(row.tokens))} msgs=${fmtInt(row.messageCount)} reason=${row.key.reason}`,
+          `- ${src} mapped=${mapped} tokens=${fmtInt(totalTokenBuckets(row.tokens))} msgs=${fmtInt(row.messageCount)} reason=${row.key.reason}`,
       );
     }
     if (agg.unpriced.length > STATUS_SAMPLE_LIMIT) {
@@ -851,7 +842,7 @@ export async function buildQuotaStatusReport(params: {
     lines.push("- none");
   } else {
     lines.push(
-      `- keys: ${fmtInt(agg.unknown.length)} tokens_total=${fmtInt(tokensTotal(agg.totals.unknown))}`,
+      `- keys: ${fmtInt(agg.unknown.length)} tokens_total=${fmtInt(totalTokenBuckets(agg.totals.unknown))}`,
     );
     for (const row of agg.unknown.slice(0, STATUS_SAMPLE_LIMIT)) {
       const src = `${row.key.sourceProviderID}/${row.key.sourceModelID}`;
@@ -864,7 +855,7 @@ export async function buildQuotaStatusReport(params: {
           ? ` candidates=${row.key.providerCandidates.join(",")}`
           : "";
       lines.push(
-        `- ${src} mapped=${mappedBase}${candidates} tokens=${fmtInt(tokensTotal(row.tokens))} msgs=${fmtInt(row.messageCount)}`,
+          `- ${src} mapped=${mappedBase}${candidates} tokens=${fmtInt(totalTokenBuckets(row.tokens))} msgs=${fmtInt(row.messageCount)}`,
       );
     }
     if (agg.unknown.length > STATUS_SAMPLE_LIMIT) {

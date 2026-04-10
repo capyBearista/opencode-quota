@@ -8,9 +8,10 @@
  * 3. auth.json: nanogpt.key or nano-gpt.key
  */
 
-import { resolveEnvTemplate } from "./env-template.js";
 import { getAuthPaths, readAuthFile } from "./opencode-auth.js";
 import {
+  extractAuthApiKeyEntry,
+  extractProviderOptionsApiKey,
   getApiKeyDiagnostics,
   getGlobalOpencodeConfigCandidatePaths,
   resolveApiKey,
@@ -23,6 +24,7 @@ export interface NanoGptApiKeyResult {
 }
 
 const ALLOWED_NANOGPT_ENV_VARS = ["NANOGPT_API_KEY", "NANO_GPT_API_KEY"] as const;
+const NANOGPT_PROVIDER_KEYS = ["nanogpt", "nano-gpt"] as const;
 
 /** Source of the resolved API key */
 export type NanoGptKeySource =
@@ -31,50 +33,6 @@ export type NanoGptKeySource =
   | "opencode.json"
   | "opencode.jsonc"
   | "auth.json";
-
-function extractNanoGptKeyFromProviderConfig(
-  providerKey: "nanogpt" | "nano-gpt",
-  config: unknown,
-): string | null {
-  if (!config || typeof config !== "object") return null;
-
-  const root = config as Record<string, unknown>;
-  const provider = root.provider;
-  if (!provider || typeof provider !== "object") return null;
-
-  const entry = (provider as Record<string, unknown>)[providerKey];
-  if (!entry || typeof entry !== "object") return null;
-
-  const options = (entry as Record<string, unknown>).options;
-  if (!options || typeof options !== "object") return null;
-
-  const apiKey = (options as Record<string, unknown>).apiKey;
-  if (typeof apiKey !== "string" || apiKey.trim().length === 0) return null;
-
-  return resolveEnvTemplate(apiKey.trim(), ALLOWED_NANOGPT_ENV_VARS);
-}
-
-function extractNanoGptKeyFromConfig(config: unknown): string | null {
-  return (
-    extractNanoGptKeyFromProviderConfig("nanogpt", config) ??
-    extractNanoGptKeyFromProviderConfig("nano-gpt", config)
-  );
-}
-
-function extractNanoGptKeyFromAuth(auth: unknown): string | null {
-  if (!auth || typeof auth !== "object") return null;
-
-  const root = auth as Record<string, unknown>;
-  const nanoGpt = (root.nanogpt ?? root["nano-gpt"]) as
-    | { type?: string; key?: string }
-    | undefined;
-
-  if (nanoGpt && nanoGpt.type === "api" && nanoGpt.key && nanoGpt.key.trim().length > 0) {
-    return nanoGpt.key.trim();
-  }
-
-  return null;
-}
 
 // Re-export for consumers that need path info
 export { getGlobalOpencodeConfigCandidatePaths as getOpencodeConfigCandidatePaths } from "./api-key-resolver.js";
@@ -86,10 +44,14 @@ export async function resolveNanoGptApiKey(): Promise<NanoGptApiKeyResult | null
         { name: "NANOGPT_API_KEY", source: "env:NANOGPT_API_KEY" },
         { name: "NANO_GPT_API_KEY", source: "env:NANO_GPT_API_KEY" },
       ],
-      extractFromConfig: extractNanoGptKeyFromConfig,
+      extractFromConfig: (config) =>
+        extractProviderOptionsApiKey(config, {
+          providerKeys: NANOGPT_PROVIDER_KEYS,
+          allowedEnvVars: ALLOWED_NANOGPT_ENV_VARS,
+        }),
       configJsonSource: "opencode.json",
       configJsoncSource: "opencode.jsonc",
-      extractFromAuth: extractNanoGptKeyFromAuth,
+      extractFromAuth: (auth) => extractAuthApiKeyEntry(auth, NANOGPT_PROVIDER_KEYS),
       authSource: "auth.json",
       getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
     },

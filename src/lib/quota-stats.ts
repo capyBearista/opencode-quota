@@ -22,17 +22,16 @@ import {
   resolveCursorModel,
 } from "./cursor-pricing.js";
 import { calculateUsdFromTokenBuckets } from "./token-cost.js";
+import {
+  addTokenBuckets,
+  emptyTokenBuckets,
+  tokenBucketsFromMessage,
+} from "./token-buckets.js";
+import type { TokenBuckets } from "./token-buckets.js";
 
 // Re-export for consumers
 export { SessionNotFoundError } from "./opencode-storage.js";
-
-export type TokenBuckets = {
-  input: number;
-  output: number;
-  reasoning: number;
-  cache_read: number;
-  cache_write: number;
-};
+export type { TokenBuckets } from "./token-buckets.js";
 
 export type PricedKey = {
   provider: string;
@@ -137,32 +136,6 @@ export type AggregateResult = {
   unknown: UnknownRow[];
   unpriced: UnpricedRow[];
 };
-
-function emptyBuckets(): TokenBuckets {
-  return { input: 0, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 };
-}
-
-function addBuckets(a: TokenBuckets, b: TokenBuckets): TokenBuckets {
-  return {
-    input: a.input + b.input,
-    output: a.output + b.output,
-    reasoning: a.reasoning + b.reasoning,
-    cache_read: a.cache_read + b.cache_read,
-    cache_write: a.cache_write + b.cache_write,
-  };
-}
-
-function messageBuckets(msg: OpenCodeMessage): TokenBuckets {
-  const t = msg.tokens;
-  if (!t) return emptyBuckets();
-  return {
-    input: typeof t.input === "number" ? t.input : 0,
-    output: typeof t.output === "number" ? t.output : 0,
-    reasoning: typeof t.reasoning === "number" ? t.reasoning : 0,
-    cache_read: typeof t.cache?.read === "number" ? t.cache.read : 0,
-    cache_write: typeof t.cache?.write === "number" ? t.cache.write : 0,
-  };
-}
 
 function normalizeModelId(raw: string): string {
   let s = raw.trim();
@@ -495,13 +468,6 @@ export function resolvePricingKey(source: {
   };
 }
 
-function mapToOfficialPricingKey(source: {
-  providerID?: string;
-  modelID?: string;
-}): PricingResolution {
-  return resolvePricingKey(source);
-}
-
 function calculateCostUsd(params: {
   provider: string;
   model: string;
@@ -643,19 +609,19 @@ export async function aggregateUsage(params: {
   const unknown = new Map<string, UnknownRow>();
   const unpriced = new Map<string, UnpricedRow>();
 
-  let pricedTotals = emptyBuckets();
-  let unknownTotals = emptyBuckets();
-  let unpricedTotals = emptyBuckets();
+  let pricedTotals = emptyTokenBuckets();
+  let unknownTotals = emptyTokenBuckets();
+  let unpricedTotals = emptyTokenBuckets();
   let costTotal = 0;
   const resolutionCache = new Map<string, PricingResolution>();
 
   for (const msg of messages) {
-    const tokens = messageBuckets(msg);
+    const tokens = tokenBucketsFromMessage(msg);
     const sid = msg.sessionID;
     const sessionTitle = sessionsIdx[sid]?.title;
     const existingSessionRow = bySession.get(sid);
     if (existingSessionRow) {
-      existingSessionRow.tokens = addBuckets(existingSessionRow.tokens, tokens);
+      existingSessionRow.tokens = addTokenBuckets(existingSessionRow.tokens, tokens);
       existingSessionRow.messageCount += 1;
     } else {
       bySession.set(sid, {
@@ -669,15 +635,15 @@ export async function aggregateUsage(params: {
 
     const cacheKey = `${msg.providerID ?? ""}|||${msg.modelID ?? ""}`;
     const cached = resolutionCache.get(cacheKey);
-    const mapping = cached ?? mapToOfficialPricingKey({ providerID: msg.providerID, modelID: msg.modelID });
+    const mapping = cached ?? resolvePricingKey({ providerID: msg.providerID, modelID: msg.modelID });
     if (!cached) resolutionCache.set(cacheKey, mapping);
 
     if (!mapping.ok) {
-      unknownTotals = addBuckets(unknownTotals, tokens);
+      unknownTotals = addTokenBuckets(unknownTotals, tokens);
       const k = JSON.stringify(mapping.unknown);
       const row = unknown.get(k);
       if (row) {
-        row.tokens = addBuckets(row.tokens, tokens);
+        row.tokens = addTokenBuckets(row.tokens, tokens);
         row.messageCount += 1;
       } else {
         unknown.set(k, { key: mapping.unknown, tokens, messageCount: 1 });
@@ -697,7 +663,7 @@ export async function aggregateUsage(params: {
       });
 
       if (classification.kind === "unpriced") {
-        unpricedTotals = addBuckets(unpricedTotals, tokens);
+        unpricedTotals = addTokenBuckets(unpricedTotals, tokens);
         const rowKey: UnpricedKey = {
           sourceProviderID: msg.providerID ?? "unknown",
           sourceModelID: msg.modelID ?? "unknown",
@@ -708,7 +674,7 @@ export async function aggregateUsage(params: {
         const k = JSON.stringify(rowKey);
         const row = unpriced.get(k);
         if (row) {
-          row.tokens = addBuckets(row.tokens, tokens);
+          row.tokens = addTokenBuckets(row.tokens, tokens);
           row.messageCount += 1;
         } else {
           unpriced.set(k, { key: rowKey, tokens, messageCount: 1 });
@@ -717,7 +683,7 @@ export async function aggregateUsage(params: {
       }
 
       // Mapping succeeded but pricing missing.
-      unknownTotals = addBuckets(unknownTotals, tokens);
+      unknownTotals = addTokenBuckets(unknownTotals, tokens);
       const unk: UnknownKey = {
         sourceProviderID: msg.providerID ?? "unknown",
         sourceModelID: msg.modelID ?? "unknown",
@@ -727,7 +693,7 @@ export async function aggregateUsage(params: {
       const k = JSON.stringify(unk);
       const row = unknown.get(k);
       if (row) {
-        row.tokens = addBuckets(row.tokens, tokens);
+        row.tokens = addTokenBuckets(row.tokens, tokens);
         row.messageCount += 1;
       } else {
         unknown.set(k, { key: unk, tokens, messageCount: 1 });
@@ -735,7 +701,7 @@ export async function aggregateUsage(params: {
       continue;
     }
 
-    pricedTotals = addBuckets(pricedTotals, tokens);
+    pricedTotals = addTokenBuckets(pricedTotals, tokens);
     costTotal += priced.costUsd;
 
     // Tokscale-style: key by OpenCode source provider + source model id.
@@ -744,7 +710,7 @@ export async function aggregateUsage(params: {
     const srcModelKey = `${srcProviderID}\n${srcModelID}`;
     const sm = bySourceModel.get(srcModelKey);
     if (sm) {
-      sm.tokens = addBuckets(sm.tokens, tokens);
+      sm.tokens = addTokenBuckets(sm.tokens, tokens);
       sm.costUsd += priced.costUsd;
       sm.messageCount += 1;
     } else {
@@ -760,7 +726,7 @@ export async function aggregateUsage(params: {
     const srcProvider = srcProviderID;
     const src = bySourceProvider.get(srcProvider);
     if (src) {
-      src.tokens = addBuckets(src.tokens, tokens);
+      src.tokens = addTokenBuckets(src.tokens, tokens);
       src.costUsd += priced.costUsd;
       src.messageCount += 1;
     } else {
@@ -775,7 +741,7 @@ export async function aggregateUsage(params: {
     const modelKey = `${mapping.key.provider}/${mapping.key.model}`;
     const existing = byModel.get(modelKey);
     if (existing) {
-      existing.tokens = addBuckets(existing.tokens, tokens);
+      existing.tokens = addTokenBuckets(existing.tokens, tokens);
       existing.costUsd += priced.costUsd;
       existing.messageCount += 1;
     } else {

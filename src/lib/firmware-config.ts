@@ -8,12 +8,13 @@
  * 3. auth.json: firmware.key (legacy/fallback)
  */
 
-import { resolveEnvTemplate } from "./env-template.js";
 import { readAuthFile } from "./opencode-auth.js";
 import {
-  resolveApiKey,
+  extractAuthApiKeyEntry,
+  extractProviderOptionsApiKey,
   getApiKeyDiagnostics,
   getGlobalOpencodeConfigCandidatePaths,
+  resolveApiKey,
 } from "./api-key-resolver.js";
 
 /** Result of firmware API key resolution */
@@ -23,6 +24,7 @@ export interface FirmwareApiKeyResult {
 }
 
 const ALLOWED_FIRMWARE_ENV_VARS = ["FIRMWARE_AI_API_KEY", "FIRMWARE_API_KEY"] as const;
+const FIRMWARE_PROVIDER_KEYS = ["firmware"] as const;
 
 /** Source of the resolved API key */
 export type FirmwareKeySource =
@@ -31,45 +33,6 @@ export type FirmwareKeySource =
   | "opencode.json"
   | "opencode.jsonc"
   | "auth.json";
-
-/**
- * Extract firmware API key from trusted opencode config object
- *
- * Looks for: provider.firmware.options.apiKey
- */
-function extractFirmwareKeyFromConfig(config: unknown): string | null {
-  if (!config || typeof config !== "object") return null;
-
-  const root = config as Record<string, unknown>;
-  const provider = root.provider;
-  if (!provider || typeof provider !== "object") return null;
-
-  const firmware = (provider as Record<string, unknown>).firmware;
-  if (!firmware || typeof firmware !== "object") return null;
-
-  const options = (firmware as Record<string, unknown>).options;
-  if (!options || typeof options !== "object") return null;
-
-  const apiKey = (options as Record<string, unknown>).apiKey;
-  if (typeof apiKey !== "string" || apiKey.trim().length === 0) return null;
-
-  // Resolve {env:VAR_NAME} syntax
-  return resolveEnvTemplate(apiKey.trim(), ALLOWED_FIRMWARE_ENV_VARS);
-}
-
-/**
- * Extract firmware API key from auth.json
- */
-function extractFirmwareKeyFromAuth(auth: unknown): string | null {
-  if (!auth || typeof auth !== "object") return null;
-  const fw = (auth as Record<string, unknown>).firmware as
-    | { type?: string; key?: string }
-    | undefined;
-  if (fw && fw.type === "api" && fw.key && fw.key.trim().length > 0) {
-    return fw.key.trim();
-  }
-  return null;
-}
 
 // Re-export for consumers that need path info
 export { getGlobalOpencodeConfigCandidatePaths as getOpencodeConfigCandidatePaths } from "./api-key-resolver.js";
@@ -91,10 +54,14 @@ export async function resolveFirmwareApiKey(): Promise<FirmwareApiKeyResult | nu
         { name: "FIRMWARE_AI_API_KEY", source: "env:FIRMWARE_AI_API_KEY" },
         { name: "FIRMWARE_API_KEY", source: "env:FIRMWARE_API_KEY" },
       ],
-      extractFromConfig: extractFirmwareKeyFromConfig,
+      extractFromConfig: (config) =>
+        extractProviderOptionsApiKey(config, {
+          providerKeys: FIRMWARE_PROVIDER_KEYS,
+          allowedEnvVars: ALLOWED_FIRMWARE_ENV_VARS,
+        }),
       configJsonSource: "opencode.json",
       configJsoncSource: "opencode.jsonc",
-      extractFromAuth: extractFirmwareKeyFromAuth,
+      extractFromAuth: (auth) => extractAuthApiKeyEntry(auth, FIRMWARE_PROVIDER_KEYS),
       authSource: "auth.json",
       getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
     },

@@ -9,6 +9,7 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+import { resolveEnvTemplate } from "./env-template.js";
 import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
 import { parseJsonOrJsonc } from "./jsonc.js";
 
@@ -88,6 +89,54 @@ export interface ApiKeyResult<Source extends string> {
 export interface EnvVarDef<Source extends string> {
   name: string;
   source: Source;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+export function extractProviderOptionsApiKey(
+  config: unknown,
+  params: {
+    providerKeys: readonly string[];
+    allowedEnvVars?: readonly string[];
+  },
+): string | null {
+  const provider = asRecord(asRecord(config)?.provider);
+  if (!provider) return null;
+
+  for (const providerKey of params.providerKeys) {
+    const options = asRecord(asRecord(provider[providerKey])?.options);
+    const apiKey = options?.apiKey;
+    if (typeof apiKey !== "string" || apiKey.trim().length === 0) continue;
+
+    const trimmed = apiKey.trim();
+    if (!params.allowedEnvVars) return trimmed;
+
+    const resolved = resolveEnvTemplate(trimmed, params.allowedEnvVars);
+    if (resolved) return resolved;
+  }
+
+  return null;
+}
+
+export function extractAuthApiKeyEntry(
+  auth: unknown,
+  authKeys: readonly string[],
+): string | null {
+  const root = asRecord(auth);
+  if (!root) return null;
+
+  for (const authKey of authKeys) {
+    const entry = root[authKey];
+    const record = asRecord(entry);
+    const key = record?.key;
+    if (record?.type === "api" && typeof key === "string" && key.trim().length > 0) {
+      return key.trim();
+    }
+  }
+
+  return null;
 }
 
 /** Configuration for resolving an API key from multiple sources */

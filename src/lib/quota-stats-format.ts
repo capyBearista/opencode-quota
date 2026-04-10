@@ -1,6 +1,7 @@
 import type { AggregateResult, SessionTreeNode, TokenBuckets } from "./quota-stats.js";
 import { renderCommandHeading } from "./format-utils.js";
 import { renderMarkdownTable, type WidthMode } from "./markdown-table.js";
+import { emptyTokenBuckets, totalTokenBuckets } from "./token-buckets.js";
 
 /** Use markdown-conceal for proper TUI alignment (strips markdown syntax for width calc) */
 const TABLE_WIDTH_MODE: WidthMode = "markdown-conceal";
@@ -10,19 +11,11 @@ function fmtUsd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function emptyBuckets(): TokenBuckets {
-  return { input: 0, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 };
-}
-
-function totalTokens(t: TokenBuckets): number {
-  return t.input + t.output + t.reasoning + t.cache_read + t.cache_write;
-}
-
 type SessionReportRow = AggregateResult["bySession"][number];
 type QuotaStatsReportKind = "standard" | "session" | "session_tree";
 
 function hasRenderableSessionUsage(row: SessionReportRow): boolean {
-  return totalTokens(row.tokens) > 0 || row.costUsd > 0;
+  return totalTokenBuckets(row.tokens) > 0 || row.costUsd > 0;
 }
 
 function appendSessionRow(sessionRows: string[][], row: SessionReportRow, current = ""): void {
@@ -30,7 +23,7 @@ function appendSessionRow(sessionRows: string[][], row: SessionReportRow, curren
     current,
     row.sessionID,
     fmtUsd(row.costUsd),
-    fmtCompact(totalTokens(row.tokens)),
+    fmtCompact(totalTokenBuckets(row.tokens)),
     fmtCompact(row.messageCount),
     truncateTitle(row.title),
   ]);
@@ -155,7 +148,9 @@ export function formatQuotaStatsReport(params: {
     throw new Error("formatQuotaStatsReport requires sessionTree for session_tree reports");
   }
   const combinedTokens =
-    totalTokens(r.totals.priced) + totalTokens(r.totals.unknown) + totalTokens(r.totals.unpriced);
+    totalTokenBuckets(r.totals.priced) +
+    totalTokenBuckets(r.totals.unknown) +
+    totalTokenBuckets(r.totals.unpriced);
 
   const lines: string[] = [];
 
@@ -264,7 +259,7 @@ export function formatQuotaStatsReport(params: {
         fmtCompact(t.cache_write),
       ];
       if (hasAnyReasoning) out.push(fmtCompact(t.reasoning));
-      out.push(fmtCompact(totalTokens(t)), fmtUsd(row.costUsd));
+        out.push(fmtCompact(totalTokenBuckets(t)), fmtUsd(row.costUsd));
       rows.push(out);
     }
 
@@ -294,7 +289,7 @@ export function formatQuotaStatsReport(params: {
         node.parentID ?? "-",
         node.sessionID,
         fmtUsd(usage?.costUsd ?? 0),
-        fmtCompact(totalTokens(usage?.tokens ?? emptyBuckets())),
+          fmtCompact(totalTokenBuckets(usage?.tokens ?? emptyTokenBuckets())),
         fmtCompact(usage?.messageCount ?? 0),
         truncateTitle(node.title ?? usage?.title),
       ];
@@ -377,7 +372,7 @@ export function formatQuotaStatsReport(params: {
             u.key.sourceModelID,
             mapped,
             u.key.reason,
-            fmtCompact(totalTokens(u.tokens)),
+              fmtCompact(totalTokenBuckets(u.tokens)),
             fmtCompact(u.messageCount),
           ];
         }),
@@ -413,7 +408,7 @@ export function formatQuotaStatsReport(params: {
             normalizeSourceName(u.key.sourceProviderID),
             u.key.sourceModelID,
             mapped,
-            fmtCompact(totalTokens(u.tokens)),
+              fmtCompact(totalTokenBuckets(u.tokens)),
             fmtCompact(u.messageCount),
           ];
         }),

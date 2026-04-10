@@ -145,6 +145,37 @@ describe("nanogpt-config", () => {
       await expect(resolveNanoGptApiKey()).resolves.toBeNull();
     });
 
+    it("falls back to nano-gpt alias when nanogpt env template is invalid", async () => {
+      const { existsSync } = await import("fs");
+      const { readFile } = await import("fs/promises");
+
+      (existsSync as any).mockImplementation((path: string) =>
+        path === join(homedir(), ".config", "opencode", "opencode.json"),
+      );
+      (readFile as any).mockResolvedValue(
+        JSON.stringify({
+          provider: {
+            nanogpt: {
+              options: {
+                apiKey: "{env:SOMETHING_ELSE}",
+              },
+            },
+            "nano-gpt": {
+              options: {
+                apiKey: "json-alias-key",
+              },
+            },
+          },
+        }),
+      );
+
+      const { resolveNanoGptApiKey } = await import("../src/lib/nanogpt-config.js");
+      await expect(resolveNanoGptApiKey()).resolves.toEqual({
+        key: "json-alias-key",
+        source: "opencode.json",
+      });
+    });
+
     it("ignores workspace-local opencode.json when resolving provider secrets", async () => {
       const { existsSync } = await import("fs");
       const { readAuthFile } = await import("../src/lib/opencode-auth.js");
@@ -220,10 +251,12 @@ describe("nanogpt-config", () => {
 
     it("reports checked trusted config paths", async () => {
       const { existsSync } = await import("fs");
+      const { readFile } = await import("fs/promises");
       const { readAuthFile } = await import("../src/lib/opencode-auth.js");
       const expectedPath = join(homedir(), ".config", "opencode", "opencode.json");
 
       (existsSync as any).mockImplementation((path: string) => path === expectedPath);
+      (readFile as any).mockResolvedValue("{}");
       (readAuthFile as any).mockResolvedValue(null);
 
       const { getNanoGptKeyDiagnostics } = await import("../src/lib/nanogpt-config.js");
