@@ -8,29 +8,24 @@
 import { clampPercent } from "./format-utils.js";
 import { sanitizeDisplaySnippet, sanitizeDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
-import { readAuthFile } from "./opencode-auth.js";
 import type {
   ZaiResult,
-  ZaiAuthData,
   ZaiQuotaResponse,
 } from "./types.js";
-
-async function readZaiAuth(): Promise<ZaiAuthData | null> {
-  const auth = await readAuthFile();
-  const zai = auth?.["zai-coding-plan"];
-  if (!zai || zai.type !== "api" || !zai.key) return null;
-  return zai as ZaiAuthData;
-}
+import { resolveZaiAuthCached } from "./zai-auth.js";
 
 const ZAI_QUOTA_URL = "https://api.z.ai/api/monitor/usage/quota/limit";
 
 export async function queryZaiQuota(): Promise<ZaiResult> {
-  const auth = await readZaiAuth();
-  if (!auth) return null;
+  const auth = await resolveZaiAuthCached();
+  if (auth.state === "none") return null;
+  if (auth.state === "invalid") {
+    return { success: false, error: auth.error };
+  }
 
   try {
     const headers: Record<string, string> = {
-      Authorization: auth.key,
+      Authorization: auth.apiKey,
       "User-Agent": "OpenCode-Quota-Toast/1.0",
       "Content-Type": "application/json",
     };

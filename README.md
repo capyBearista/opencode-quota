@@ -297,10 +297,11 @@ See [Qwen Code quick setup](#qwen-code-quick-setup) for auth. Usage is local-onl
 <details>
 <summary><strong>Alibaba Coding Plan</strong></summary>
 
-Uses native OpenCode auth from `alibaba` or `alibaba-coding-plan`. Quota is local request-count estimation with rolling windows.
+Uses native OpenCode auth from `alibaba-coding-plan` or `alibaba` in `auth.json`. Quota is local request-count estimation with rolling windows.
 
 - `lite`: `1200 / 5h`, `9000 / week`, `18000 / month`
 - `pro`: `6000 / 5h`, `45000 / week`, `90000 / month`
+- Auth is read from OpenCode `auth.json` only. There is no env-var or user/global `opencode.json` fallback for Alibaba Coding Plan.
 - If auth omits `tier`, the plugin uses `experimental.quotaToast.alibabaCodingPlanTier`, which defaults to `lite`.
 - Counters increment on successful question-tool completions while the current model is `alibaba/*` or `alibaba-cn/*`.
 - State file: `.../opencode/opencode-quota/alibaba-coding-plan-local-quota.json`.
@@ -327,7 +328,7 @@ Example fallback tier:
 
 If OpenCode is already configured with the `minimax-coding-plan` provider and your `auth.json` has a `minimax-coding-plan` entry, quota detection works automatically. No additional plugin is required.
 
-The plugin reads `key` first and falls back to `access` from that auth entry. Quota is fetched from the MiniMax API using those stored credentials.
+The plugin reads `key` first and falls back to `access` from that auth entry. Quota is fetched from the MiniMax API using those stored credentials. There is no env-var or user/global `opencode.json` fallback for MiniMax Coding Plan auth.
 
 Example `auth.json` entry:
 
@@ -342,6 +343,30 @@ Example `auth.json` entry:
 
 - `MiniMax-M*` models — rolling 5-hour interval + weekly
 - `/quota_status` shows auth detection, API-key diagnostics, live quota state, and endpoint errors
+
+</details>
+
+<a id="zai-notes"></a>
+<details>
+<summary><strong>Z.ai</strong></summary>
+
+If OpenCode is already configured with the `zai`, `glm`, or `zai-coding-plan` provider and your `auth.json` has a `zai-coding-plan` entry, quota detection works automatically.
+
+The plugin reads `auth.json["zai-coding-plan"]` only. There is no env-var or user/global `opencode.json` fallback for Z.ai auth.
+
+Example `auth.json` entry:
+
+```json
+{
+  "zai-coding-plan": {
+    "type": "api",
+    "key": "YOUR_ZAI_API_KEY"
+  }
+}
+```
+
+- `/quota_status` shows auth diagnostics plus live hourly, weekly, and MCP quota windows when the Z.ai API reports them.
+- Malformed `zai-coding-plan` auth is surfaced as an auth error instead of being silently treated as missing.
 
 </details>
 

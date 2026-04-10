@@ -18,14 +18,20 @@ import {
   readQwenLocalQuotaState,
 } from "./qwen-local-quota.js";
 import {
-  hasAlibabaAuth,
+  DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
+  getAlibabaCodingPlanAuthDiagnostics,
   resolveAlibabaCodingPlanAuth,
 } from "./alibaba-auth.js";
 import { hasQwenOAuthAuth, resolveQwenLocalPlan } from "./qwen-auth.js";
 import {
   DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
+  getMiniMaxAuthDiagnostics,
   resolveMiniMaxAuthCached,
 } from "./minimax-auth.js";
+import {
+  DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
+  getZaiAuthDiagnostics,
+} from "./zai-auth.js";
 import {
   getPricingSnapshotHealth,
   getPricingRefreshPolicy,
@@ -57,6 +63,7 @@ import {
 } from "./cursor-pricing.js";
 import type { CursorQuotaPlan, PricingSnapshotSource } from "./types.js";
 import { queryMiniMaxQuota } from "../providers/minimax-coding-plan.js";
+import { queryZaiQuota } from "./zai.js";
 
 /** Session token fetch error info for status report */
 export interface SessionTokenError {
@@ -338,14 +345,17 @@ export async function buildQuotaStatusReport(params: {
   const authData = await readAuthFileCached({ maxAgeMs: 5_000 });
   const qwenAuthConfigured = hasQwenOAuthAuth(authData);
   const qwenLocalPlan = resolveQwenLocalPlan(authData);
-  const alibabaAuthConfigured = hasAlibabaAuth(authData);
+  const alibabaAuthDiagnostics = await getAlibabaCodingPlanAuthDiagnostics({
+    maxAgeMs: DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
+    fallbackTier: params.alibabaCodingPlanTier,
+  });
   const alibabaCodingPlanAuth = resolveAlibabaCodingPlanAuth(authData, params.alibabaCodingPlanTier);
   lines.push(`- qwen oauth auth configured: ${qwenAuthConfigured ? "true" : "false"}`);
   lines.push(`- qwen_local_plan: ${qwenLocalPlan.state === "qwen_free" ? "qwen-code/free" : "(none)"}`);
-  lines.push(`- alibaba auth configured: ${alibabaAuthConfigured ? "true" : "false"}`);
+  lines.push(`- alibaba auth configured: ${alibabaAuthDiagnostics.state === "none" ? "false" : "true"}`);
   lines.push(`- alibaba coding plan fallback tier: ${params.alibabaCodingPlanTier}`);
   lines.push(
-    `- alibaba_coding_plan: ${alibabaCodingPlanAuth.state === "configured" ? alibabaCodingPlanAuth.tier : alibabaCodingPlanAuth.state === "invalid" ? "invalid" : "(none)"}`,
+    `- alibaba_coding_plan: ${alibabaAuthDiagnostics.state === "configured" ? alibabaAuthDiagnostics.tier : alibabaAuthDiagnostics.state === "invalid" ? "invalid" : "(none)"}`,
   );
 
   lines.push("");
@@ -473,33 +483,82 @@ export async function buildQuotaStatusReport(params: {
 
   lines.push("");
   lines.push("minimax:");
-  const minimaxAuth = await resolveMiniMaxAuthCached({
+  const minimaxAuth = await getMiniMaxAuthDiagnostics({
     maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
   });
   lines.push(`- auth_state: ${minimaxAuth.state}`);
   lines.push(`- api_key_configured: ${minimaxAuth.state === "configured" ? "true" : "false"}`);
+  lines.push(`- api_key_source: ${minimaxAuth.source ?? "(none)"}`);
+  lines.push(`- api_key_auth_paths: ${joinOrNone(minimaxAuth.checkedPaths)}`);
   if (minimaxAuth.state === "invalid") {
     lines.push(`- auth_error: ${sanitizeDisplayText(minimaxAuth.error)}`);
   }
   if (minimaxAuth.state === "configured") {
-    const minimaxQuota = await queryMiniMaxQuota(minimaxAuth.apiKey);
-    if (!minimaxQuota.success) {
-      lines.push(`- live_fetch_error: ${minimaxQuota.error}`);
+    const resolvedMiniMaxAuth = await resolveMiniMaxAuthCached({
+      maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
+    });
+    if (resolvedMiniMaxAuth.state !== "configured") {
+      lines.push("- live_fetch_error: MiniMax API key became unavailable before fetch");
     } else {
-      const fiveHourEntry = minimaxQuota.entries.find((entry) => entry.window === "five_hour");
-      const weeklyEntry = minimaxQuota.entries.find((entry) => entry.window === "weekly");
-      if (fiveHourEntry) {
+      const minimaxQuota = await queryMiniMaxQuota(resolvedMiniMaxAuth.apiKey);
+      if (!minimaxQuota.success) {
+        lines.push(`- live_fetch_error: ${minimaxQuota.error}`);
+      } else {
+        const fiveHourEntry = minimaxQuota.entries.find((entry) => entry.window === "five_hour");
+        const weeklyEntry = minimaxQuota.entries.find((entry) => entry.window === "weekly");
+        if (fiveHourEntry) {
+          lines.push(
+            `- five_hour_usage: ${fiveHourEntry.right ?? "(none)"} percent_remaining=${fiveHourEntry.percentRemaining} reset_at=${fiveHourEntry.resetTimeIso ?? "(none)"}`,
+          );
+        }
+        if (weeklyEntry) {
+          lines.push(
+            `- weekly_usage: ${weeklyEntry.right ?? "(none)"} percent_remaining=${weeklyEntry.percentRemaining} reset_at=${weeklyEntry.resetTimeIso ?? "(none)"}`,
+          );
+        }
+        if (!fiveHourEntry && !weeklyEntry) {
+          lines.push("- live_state: no reportable MiniMax Coding Plan quota");
+        }
+      }
+    }
+  }
+
+  lines.push("");
+  lines.push("zai:");
+  const zaiAuth = await getZaiAuthDiagnostics({
+    maxAgeMs: DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
+  });
+  lines.push(`- auth_state: ${zaiAuth.state}`);
+  lines.push(`- api_key_configured: ${zaiAuth.state === "configured" ? "true" : "false"}`);
+  lines.push(`- api_key_source: ${zaiAuth.source ?? "(none)"}`);
+  lines.push(`- api_key_auth_paths: ${joinOrNone(zaiAuth.checkedPaths)}`);
+  if (zaiAuth.state === "invalid") {
+    lines.push(`- auth_error: ${sanitizeDisplayText(zaiAuth.error)}`);
+  }
+  if (zaiAuth.state === "configured") {
+    const zaiQuota = await queryZaiQuota();
+    if (!zaiQuota) {
+      lines.push("- live_fetch_error: Z.ai API key became unavailable before fetch");
+    } else if (!zaiQuota.success) {
+      lines.push(`- live_fetch_error: ${zaiQuota.error}`);
+    } else {
+      if (zaiQuota.windows.hourly) {
         lines.push(
-          `- five_hour_usage: ${fiveHourEntry.right ?? "(none)"} percent_remaining=${fiveHourEntry.percentRemaining} reset_at=${fiveHourEntry.resetTimeIso ?? "(none)"}`,
+          `- hourly_remaining: ${zaiQuota.windows.hourly.percentRemaining}% reset_at=${zaiQuota.windows.hourly.resetTimeIso ?? "(none)"}`,
         );
       }
-      if (weeklyEntry) {
+      if (zaiQuota.windows.weekly) {
         lines.push(
-          `- weekly_usage: ${weeklyEntry.right ?? "(none)"} percent_remaining=${weeklyEntry.percentRemaining} reset_at=${weeklyEntry.resetTimeIso ?? "(none)"}`,
+          `- weekly_remaining: ${zaiQuota.windows.weekly.percentRemaining}% reset_at=${zaiQuota.windows.weekly.resetTimeIso ?? "(none)"}`,
         );
       }
-      if (!fiveHourEntry && !weeklyEntry) {
-        lines.push("- live_state: no reportable MiniMax Coding Plan quota");
+      if (zaiQuota.windows.mcp) {
+        lines.push(
+          `- mcp_remaining: ${zaiQuota.windows.mcp.percentRemaining}% reset_at=${zaiQuota.windows.mcp.resetTimeIso ?? "(none)"}`,
+        );
+      }
+      if (!zaiQuota.windows.hourly && !zaiQuota.windows.weekly && !zaiQuota.windows.mcp) {
+        lines.push("- live_state: no reportable Z.ai quota windows");
       }
     }
   }

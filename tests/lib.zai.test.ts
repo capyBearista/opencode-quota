@@ -2,36 +2,37 @@ import { describe, expect, it, vi } from "vitest";
 
 import { queryZaiQuota } from "../src/lib/zai.js";
 
-vi.mock("../src/lib/opencode-auth.js", () => ({
-  readAuthFile: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  resolveZaiAuthCached: vi.fn(),
+}));
+
+vi.mock("../src/lib/zai-auth.js", () => ({
+  resolveZaiAuthCached: mocks.resolveZaiAuthCached,
 }));
 
 async function mockZaiAuth(key: string = "zai-test-key"): Promise<void> {
-  const { readAuthFile } = await import("../src/lib/opencode-auth.js");
-  (readAuthFile as any).mockResolvedValueOnce({
-    "zai-coding-plan": { type: "api", key },
+  mocks.resolveZaiAuthCached.mockResolvedValueOnce({
+    state: "configured",
+    apiKey: key,
   });
 }
 
 describe("queryZaiQuota", () => {
   it("returns null when not configured", async () => {
-    const { readAuthFile } = await import("../src/lib/opencode-auth.js");
-    (readAuthFile as any).mockResolvedValueOnce({});
+    mocks.resolveZaiAuthCached.mockResolvedValueOnce({ state: "none" });
 
     await expect(queryZaiQuota()).resolves.toBeNull();
   });
 
-  it("returns null when zai-coding-plan auth is invalid", async () => {
-    const { readAuthFile } = await import("../src/lib/opencode-auth.js");
-    (readAuthFile as any).mockResolvedValueOnce({
-      "zai-coding-plan": { type: "oauth", access: "token" },
+  it("returns auth errors when zai-coding-plan auth is invalid", async () => {
+    mocks.resolveZaiAuthCached.mockResolvedValueOnce({
+      state: "invalid",
+      error: 'Unsupported Z.ai auth type: "oauth"',
     });
-    await expect(queryZaiQuota()).resolves.toBeNull();
-
-    (readAuthFile as any).mockResolvedValueOnce({
-      "zai-coding-plan": { type: "api", key: "" },
+    await expect(queryZaiQuota()).resolves.toEqual({
+      success: false,
+      error: 'Unsupported Z.ai auth type: "oauth"',
     });
-    await expect(queryZaiQuota()).resolves.toBeNull();
   });
 
   it("returns API status errors with truncated response body", async () => {

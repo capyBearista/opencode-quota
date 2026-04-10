@@ -1,12 +1,35 @@
+import { getFirstAuthEntryRecord } from "./api-key-resolver.js";
+import { getAuthPaths, readAuthFileCached } from "./opencode-auth.js";
 import type { AlibabaAuthData, AlibabaCodingPlanTier, AuthData } from "./types.js";
-import { readAuthFileCached } from "./opencode-auth.js";
 
 export const DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS = 5_000;
+const ALIBABA_AUTH_KEYS = ["alibaba-coding-plan", "alibaba"] as const;
+const DEFAULT_ALIBABA_CODING_PLAN_TIER: AlibabaCodingPlanTier = "lite";
 
 export type ResolvedAlibabaCodingPlanAuth =
   | { state: "none" }
   | { state: "configured"; apiKey: string; tier: AlibabaCodingPlanTier }
   | { state: "invalid"; error: string; rawTier?: string };
+
+export type AlibabaCodingPlanAuthDiagnostics =
+  | {
+      state: "none";
+      source: null;
+      checkedPaths: string[];
+    }
+  | {
+      state: "configured";
+      source: "auth.json";
+      checkedPaths: string[];
+      tier: AlibabaCodingPlanTier;
+    }
+  | {
+      state: "invalid";
+      source: "auth.json";
+      checkedPaths: string[];
+      error: string;
+      rawTier?: string;
+    };
 
 function getFirstString(obj: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
@@ -26,12 +49,12 @@ function normalizeAlibabaTier(value: string | undefined): AlibabaCodingPlanTier 
   return null;
 }
 
-const DEFAULT_ALIBABA_CODING_PLAN_TIER: AlibabaCodingPlanTier = "lite";
-
 function getAlibabaAuth(auth: AuthData | null | undefined): AlibabaAuthData | null {
-  for (const key of ["alibaba-coding-plan", "alibaba"] as const) {
-    const alibaba = auth?.[key];
-    if (!alibaba) continue;
+  for (const key of ALIBABA_AUTH_KEYS) {
+    const entry = getFirstAuthEntryRecord(auth, [key]);
+    if (!entry) continue;
+
+    const alibaba = entry as AlibabaAuthData;
 
     const credential =
       typeof alibaba.key === "string" && alibaba.key.trim()
@@ -96,10 +119,44 @@ export async function resolveAlibabaCodingPlanAuthCached(params?: {
   maxAgeMs?: number;
   fallbackTier?: AlibabaCodingPlanTier;
 }): Promise<ResolvedAlibabaCodingPlanAuth> {
+  const maxAgeMs = Math.max(0, params?.maxAgeMs ?? DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS);
   const auth = await readAuthFileCached({
-    maxAgeMs: Math.max(0, params?.maxAgeMs ?? DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS),
+    maxAgeMs,
   });
   return resolveAlibabaCodingPlanAuth(auth, params?.fallbackTier);
+}
+
+export async function getAlibabaCodingPlanAuthDiagnostics(params?: {
+  maxAgeMs?: number;
+  fallbackTier?: AlibabaCodingPlanTier;
+}): Promise<AlibabaCodingPlanAuthDiagnostics> {
+  const auth = await resolveAlibabaCodingPlanAuthCached(params);
+  const checkedPaths = getAuthPaths();
+
+  if (auth.state === "none") {
+    return {
+      state: "none",
+      source: null,
+      checkedPaths,
+    };
+  }
+
+  if (auth.state === "invalid") {
+    return {
+      state: "invalid",
+      source: "auth.json",
+      checkedPaths,
+      error: auth.error,
+      rawTier: auth.rawTier,
+    };
+  }
+
+  return {
+    state: "configured",
+    source: "auth.json",
+    checkedPaths,
+    tier: auth.tier,
+  };
 }
 
 export function hasAlibabaAuth(auth: AuthData | null | undefined): boolean {

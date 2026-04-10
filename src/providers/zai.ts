@@ -12,17 +12,29 @@ import type {
 } from "../lib/entries.js";
 import { queryZaiQuota } from "../lib/zai.js";
 import { isAnyProviderIdAvailable } from "../lib/provider-availability.js";
+import {
+  DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
+  resolveZaiAuthCached,
+} from "../lib/zai-auth.js";
 
 export const zaiProvider: QuotaProvider = {
   id: "zai",
 
   async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    return isAnyProviderIdAvailable({
+    const providerAvailable = await isAnyProviderIdAvailable({
       ctx,
       // Z.ai models typically use "zai" or "glm" provider ids.
       candidateIds: ["zai", "glm", "zai-coding-plan"],
       fallbackOnError: false,
     });
+    if (!providerAvailable) {
+      return false;
+    }
+
+    const auth = await resolveZaiAuthCached({
+      maxAgeMs: DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
+    });
+    return auth.state === "configured" || auth.state === "invalid";
   },
 
   matchesCurrentModel(model: string): boolean {

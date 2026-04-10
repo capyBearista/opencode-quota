@@ -5,19 +5,39 @@
  * them into a standardized format for the MiniMax Coding Plan provider.
  */
 
+import { getFirstAuthEntryValue } from "./api-key-resolver.js";
 import type { AuthData, MiniMaxAuthData } from "./types.js";
 import { sanitizeDisplayText } from "./display-sanitize.js";
-import { readAuthFileCached } from "./opencode-auth.js";
+import { getAuthPaths, readAuthFileCached } from "./opencode-auth.js";
 
 export const DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS = 5_000;
+const MINIMAX_AUTH_KEYS = ["minimax-coding-plan"] as const;
 
 export type ResolvedMiniMaxAuth =
   | { state: "none" }
   | { state: "configured"; apiKey: string }
   | { state: "invalid"; error: string };
 
+export type MiniMaxAuthDiagnostics =
+  | {
+      state: "none";
+      source: null;
+      checkedPaths: string[];
+    }
+  | {
+      state: "configured";
+      source: "auth.json";
+      checkedPaths: string[];
+    }
+  | {
+      state: "invalid";
+      source: "auth.json";
+      checkedPaths: string[];
+      error: string;
+    };
+
 function getMiniMaxAuthEntry(auth: AuthData | null | undefined): unknown {
-  return auth?.["minimax-coding-plan"];
+  return getFirstAuthEntryValue(auth, MINIMAX_AUTH_KEYS);
 }
 
 function isMiniMaxAuthData(value: unknown): value is MiniMaxAuthData {
@@ -74,8 +94,39 @@ export function resolveMiniMaxAuth(auth: AuthData | null | undefined): ResolvedM
 export async function resolveMiniMaxAuthCached(params?: {
   maxAgeMs?: number;
 }): Promise<ResolvedMiniMaxAuth> {
+  const maxAgeMs = Math.max(0, params?.maxAgeMs ?? DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS);
   const auth = await readAuthFileCached({
-    maxAgeMs: Math.max(0, params?.maxAgeMs ?? DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS),
+    maxAgeMs,
   });
   return resolveMiniMaxAuth(auth);
+}
+
+export async function getMiniMaxAuthDiagnostics(params?: {
+  maxAgeMs?: number;
+}): Promise<MiniMaxAuthDiagnostics> {
+  const auth = await resolveMiniMaxAuthCached(params);
+  const checkedPaths = getAuthPaths();
+
+  if (auth.state === "none") {
+    return {
+      state: "none",
+      source: null,
+      checkedPaths,
+    };
+  }
+
+  if (auth.state === "invalid") {
+    return {
+      state: "invalid",
+      source: "auth.json",
+      checkedPaths,
+      error: auth.error,
+    };
+  }
+
+  return {
+    state: "configured",
+    source: "auth.json",
+    checkedPaths,
+  };
 }

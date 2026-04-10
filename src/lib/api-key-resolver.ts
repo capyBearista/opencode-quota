@@ -95,6 +95,29 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
+export function getFirstAuthEntryValue(
+  auth: unknown,
+  authKeys: readonly string[],
+): unknown {
+  const root = asRecord(auth);
+  if (!root) return undefined;
+
+  for (const authKey of authKeys) {
+    if (Object.prototype.hasOwnProperty.call(root, authKey)) {
+      return root[authKey];
+    }
+  }
+
+  return undefined;
+}
+
+export function getFirstAuthEntryRecord(
+  auth: unknown,
+  authKeys: readonly string[],
+): Record<string, unknown> | null {
+  return asRecord(getFirstAuthEntryValue(auth, authKeys));
+}
+
 export function extractProviderOptionsApiKey(
   config: unknown,
   params: {
@@ -124,12 +147,8 @@ export function extractAuthApiKeyEntry(
   auth: unknown,
   authKeys: readonly string[],
 ): string | null {
-  const root = asRecord(auth);
-  if (!root) return null;
-
   for (const authKey of authKeys) {
-    const entry = root[authKey];
-    const record = asRecord(entry);
+    const record = getFirstAuthEntryRecord(auth, [authKey]);
     const key = record?.key;
     if (record?.type === "api" && typeof key === "string" && key.trim().length > 0) {
       return key.trim();

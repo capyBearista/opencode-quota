@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   expectAttemptedWithErrorLabel,
@@ -11,7 +11,24 @@ vi.mock("../src/lib/zai.js", () => ({
   queryZaiQuota: vi.fn(),
 }));
 
+const authMocks = vi.hoisted(() => ({
+  resolveZaiAuthCached: vi.fn(),
+}));
+
+vi.mock("../src/lib/zai-auth.js", () => ({
+  DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS: 5_000,
+  resolveZaiAuthCached: authMocks.resolveZaiAuthCached,
+}));
+
 describe("zai provider", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authMocks.resolveZaiAuthCached.mockResolvedValue({
+      state: "configured",
+      apiKey: "zai-test-key",
+    });
+  });
+
   it("returns attempted:false when not configured", async () => {
     const { queryZaiQuota } = await import("../src/lib/zai.js");
     (queryZaiQuota as any).mockResolvedValueOnce(null);
@@ -100,7 +117,7 @@ describe("zai provider", () => {
     expect(zaiProvider.matchesCurrentModel?.("openai/gpt-5")).toBe(false);
   });
 
-  it("is available when provider ids include zai/glm/zai-coding-plan", async () => {
+  it("is available when provider ids include zai/glm/zai-coding-plan and auth is configured", async () => {
     const makeCtx = (ids: string[]) =>
       ({
         client: {
@@ -118,6 +135,43 @@ describe("zai provider", () => {
     await expect(zaiProvider.isAvailable(makeCtx(["openai"]))).resolves.toBe(false);
   });
 
+  it("is available when auth is invalid so the provider can surface the error", async () => {
+    authMocks.resolveZaiAuthCached.mockResolvedValueOnce({
+      state: "invalid",
+      error: 'Unsupported Z.ai auth type: "oauth"',
+    });
+
+    const ctx = {
+      client: {
+        config: {
+          providers: vi.fn().mockResolvedValue({ data: { providers: [{ id: "zai" }] } }),
+          get: vi.fn(),
+        },
+      },
+      config: { googleModels: [] },
+    } as any;
+
+    await expect(zaiProvider.isAvailable(ctx)).resolves.toBe(true);
+    expect(authMocks.resolveZaiAuthCached).toHaveBeenCalledWith({ maxAgeMs: 5_000 });
+  });
+
+  it("is not available when provider ids exist but auth is missing", async () => {
+    authMocks.resolveZaiAuthCached.mockResolvedValueOnce({ state: "none" });
+
+    const ctx = {
+      client: {
+        config: {
+          providers: vi.fn().mockResolvedValue({ data: { providers: [{ id: "zai" }] } }),
+          get: vi.fn(),
+        },
+      },
+      config: { googleModels: [] },
+    } as any;
+
+    await expect(zaiProvider.isAvailable(ctx)).resolves.toBe(false);
+    expect(authMocks.resolveZaiAuthCached).toHaveBeenCalledWith({ maxAgeMs: 5_000 });
+  });
+
   it("is not available when provider lookup throws", async () => {
     const ctx = {
       client: {
@@ -130,6 +184,6 @@ describe("zai provider", () => {
     } as any;
 
     await expect(zaiProvider.isAvailable(ctx)).resolves.toBe(false);
+    expect(authMocks.resolveZaiAuthCached).not.toHaveBeenCalled();
   });
 });
-

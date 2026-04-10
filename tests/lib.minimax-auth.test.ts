@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getAuthPaths: vi.fn(() => ["/tmp/auth.json"]),
   readAuthFileCached: vi.fn(),
 }));
 
 vi.mock("../src/lib/opencode-auth.js", () => ({
+  getAuthPaths: mocks.getAuthPaths,
   readAuthFileCached: mocks.readAuthFileCached,
 }));
 
 import {
   DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
+  getMiniMaxAuthDiagnostics,
   resolveMiniMaxAuth,
   resolveMiniMaxAuthCached,
 } from "../src/lib/minimax-auth.js";
@@ -130,6 +133,43 @@ describe("minimax auth resolution", () => {
 
       await resolveMiniMaxAuthCached({ maxAgeMs: -500 });
       expect(mocks.readAuthFileCached).toHaveBeenCalledWith({ maxAgeMs: 0 });
+    });
+  });
+
+  describe("getMiniMaxAuthDiagnostics", () => {
+    it("reports none with candidate auth paths", async () => {
+      mocks.readAuthFileCached.mockResolvedValueOnce({});
+
+      await expect(getMiniMaxAuthDiagnostics()).resolves.toEqual({
+        state: "none",
+        source: null,
+        checkedPaths: ["/tmp/auth.json"],
+      });
+    });
+
+    it("reports invalid auth.json diagnostics", async () => {
+      mocks.readAuthFileCached.mockResolvedValueOnce(
+        withMiniMaxAuth({ type: "oauth", key: "some-key" }),
+      );
+
+      await expect(getMiniMaxAuthDiagnostics()).resolves.toEqual({
+        state: "invalid",
+        source: "auth.json",
+        checkedPaths: ["/tmp/auth.json"],
+        error: 'Unsupported MiniMax auth type: "oauth"',
+      });
+    });
+
+    it("reports configured auth.json diagnostics", async () => {
+      mocks.readAuthFileCached.mockResolvedValueOnce(
+        withMiniMaxAuth({ type: "api", key: "cached-key" }),
+      );
+
+      await expect(getMiniMaxAuthDiagnostics()).resolves.toEqual({
+        state: "configured",
+        source: "auth.json",
+        checkedPaths: ["/tmp/auth.json"],
+      });
     });
   });
 });
