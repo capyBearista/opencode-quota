@@ -671,7 +671,7 @@ describe("buildQuotaStatusReport", () => {
       success: true,
       label: "Z.ai",
       windows: {
-        hourly: { percentRemaining: 67, resetTimeIso: "2026-03-25T18:00:00.000Z" },
+        fiveHour: { percentRemaining: 67, resetTimeIso: "2026-03-25T18:00:00.000Z" },
         weekly: { percentRemaining: 44, resetTimeIso: "2026-04-01T00:00:00.000Z" },
         mcp: { percentRemaining: 90, resetTimeIso: "2026-04-10T00:00:00.000Z" },
       },
@@ -684,7 +684,7 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("- api_key_configured: true");
     expect(report).toContain("- api_key_source: auth.json");
     expect(report).toContain("- api_key_auth_paths: /tmp/auth.json");
-    expect(report).toContain("- hourly_remaining: 67% reset_at=2026-03-25T18:00:00.000Z");
+    expect(report).toContain("- five_hour_remaining: 67% reset_at=2026-03-25T18:00:00.000Z");
     expect(report).toContain("- weekly_remaining: 44% reset_at=2026-04-01T00:00:00.000Z");
     expect(report).toContain("- mcp_remaining: 90% reset_at=2026-04-10T00:00:00.000Z");
   });

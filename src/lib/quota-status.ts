@@ -542,9 +542,9 @@ export async function buildQuotaStatusReport(params: {
     } else if (!zaiQuota.success) {
       lines.push(`- live_fetch_error: ${zaiQuota.error}`);
     } else {
-      if (zaiQuota.windows.hourly) {
+      if (zaiQuota.windows.fiveHour) {
         lines.push(
-          `- hourly_remaining: ${zaiQuota.windows.hourly.percentRemaining}% reset_at=${zaiQuota.windows.hourly.resetTimeIso ?? "(none)"}`,
+          `- five_hour_remaining: ${zaiQuota.windows.fiveHour.percentRemaining}% reset_at=${zaiQuota.windows.fiveHour.resetTimeIso ?? "(none)"}`,
         );
       }
       if (zaiQuota.windows.weekly) {
@@ -557,7 +557,7 @@ export async function buildQuotaStatusReport(params: {
           `- mcp_remaining: ${zaiQuota.windows.mcp.percentRemaining}% reset_at=${zaiQuota.windows.mcp.resetTimeIso ?? "(none)"}`,
         );
       }
-      if (!zaiQuota.windows.hourly && !zaiQuota.windows.weekly && !zaiQuota.windows.mcp) {
+      if (!zaiQuota.windows.fiveHour && !zaiQuota.windows.weekly && !zaiQuota.windows.mcp) {
         lines.push("- live_state: no reportable Z.ai quota windows");
       }
     }

@@ -46,7 +46,7 @@ export async function queryZaiQuota(): Promise<ZaiResult> {
       return { success: false, error: "Invalid quota data" };
     }
 
-    let hourlyWindow: { percentRemaining: number; resetTimeIso?: string } | undefined;
+    let fiveHourWindow: { percentRemaining: number; resetTimeIso?: string } | undefined;
     let weeklyWindow: { percentRemaining: number; resetTimeIso?: string } | undefined;
     let mcpWindow: { percentRemaining: number; resetTimeIso?: string } | undefined;
 
@@ -65,11 +65,14 @@ export async function queryZaiQuota(): Promise<ZaiResult> {
 
       if (limit.type === "TOKENS_LIMIT") {
         if (limit.unit === 3) {
-          // unit 3 is 5-hourly (Standard Lite/Pro/Max window)
-          hourlyWindow = window;
-        } else if (limit.unit === 4 || limit.unit === 6) {
-          // unit 6 is weekly, unit 4 is daily. We prioritize the longer one as Weekly for display parity.
+          // unit 3 is the 5-hour token window (Standard Lite/Pro/Max).
+          fiveHourWindow = window;
+        } else if (limit.unit === 6) {
+          // unit 6 is the weekly token window.
           weeklyWindow = window;
+        } else if (limit.unit === 4) {
+          // unit 4 is daily. Do not surface it as weekly in the current UI/report shape.
+          continue;
         }
       } else if (limit.type === "TIME_LIMIT") {
         // TIME_LIMIT (unit 5) is typically the Monthly MCP limit
@@ -81,7 +84,7 @@ export async function queryZaiQuota(): Promise<ZaiResult> {
       success: true,
       label: "Z.ai",
       windows: {
-        hourly: hourlyWindow,
+        fiveHour: fiveHourWindow,
         weekly: weeklyWindow,
         mcp: mcpWindow,
       },

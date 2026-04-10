@@ -43,7 +43,7 @@ describe("zai provider", () => {
       success: true,
       label: "Z.ai",
       windows: {
-        hourly: { percentRemaining: 80, resetTimeIso: "2026-01-01T00:00:00.000Z" },
+        fiveHour: { percentRemaining: 80, resetTimeIso: "2026-01-01T00:00:00.000Z" },
         weekly: { percentRemaining: 30, resetTimeIso: "2026-01-02T00:00:00.000Z" },
         mcp: { percentRemaining: 90, resetTimeIso: "2026-01-03T00:00:00.000Z" },
       },
@@ -66,7 +66,7 @@ describe("zai provider", () => {
       success: true,
       label: "Z.ai",
       windows: {
-        hourly: { percentRemaining: 85, resetTimeIso: "2026-01-01T00:00:00.000Z" },
+        fiveHour: { percentRemaining: 85, resetTimeIso: "2026-01-01T00:00:00.000Z" },
         weekly: { percentRemaining: 45, resetTimeIso: "2026-01-02T00:00:00.000Z" },
         mcp: { percentRemaining: 70, resetTimeIso: "2026-01-03T00:00:00.000Z" },
       },
@@ -76,9 +76,9 @@ describe("zai provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
-        name: "Z.ai Hourly",
+        name: "Z.ai 5h",
         group: "Z.ai",
-        label: "Hourly:",
+        label: "5h:",
         percentRemaining: 85,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
       },

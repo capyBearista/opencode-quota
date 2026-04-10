@@ -365,7 +365,7 @@ Example `auth.json` entry:
 }
 ```
 
-- `/quota_status` shows auth diagnostics plus live hourly, weekly, and MCP quota windows when the Z.ai API reports them.
+- `/quota_status` shows auth diagnostics plus live 5-hour, weekly, and MCP quota windows when the Z.ai API reports them.
 - Malformed `zai-coding-plan` auth is surfaced as an auth error instead of being silently treated as missing.
 
 </details>

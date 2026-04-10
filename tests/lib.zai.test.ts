@@ -73,8 +73,8 @@ describe("queryZaiQuota", () => {
   });
 
   it("maps unit windows and clamps percentages", async () => {
-    const hourlyResetMs = 1_735_776_000_000;
-    const weeklyResetMs = 1_735_862_400_000;
+    const fiveHourResetMs = 1_735_776_000_000;
+    const weeklyResetMs = 1_736_121_600_000;
     const mcpResetMs = 1_735_948_800_000;
 
     await mockZaiAuth();
@@ -96,14 +96,14 @@ describe("queryZaiQuota", () => {
                     number: 100,
                     usage: 33.3,
                     percentage: 33.3,
-                    nextResetTime: hourlyResetMs,
+                    nextResetTime: fiveHourResetMs,
                   },
                   {
                     type: "TOKENS_LIMIT",
-                    unit: 4,
+                    unit: 6,
                     number: 100,
-                    usage: 105,
-                    percentage: 105,
+                    usage: 55.5,
+                    percentage: 55.5,
                     nextResetTime: weeklyResetMs,
                   },
                   {
@@ -124,12 +124,12 @@ describe("queryZaiQuota", () => {
 
     const out = await queryZaiQuota();
     expect(out && out.success ? out.label : "").toBe("Z.ai");
-    expect(out && out.success ? out.windows.hourly : undefined).toEqual({
+    expect(out && out.success ? out.windows.fiveHour : undefined).toEqual({
       percentRemaining: 67,
-      resetTimeIso: new Date(hourlyResetMs).toISOString(),
+      resetTimeIso: new Date(fiveHourResetMs).toISOString(),
     });
     expect(out && out.success ? out.windows.weekly : undefined).toEqual({
-      percentRemaining: 0,
+      percentRemaining: 45,
       resetTimeIso: new Date(weeklyResetMs).toISOString(),
     });
     expect(out && out.success ? out.windows.mcp : undefined).toEqual({
@@ -138,7 +138,7 @@ describe("queryZaiQuota", () => {
     });
   });
 
-  it("uses the last weekly candidate when both unit 4 and 6 are present", async () => {
+  it("prefers the weekly unit when both daily and weekly token windows are present", async () => {
     await mockZaiAuth();
     vi.stubGlobal(
       "fetch",
@@ -167,6 +167,51 @@ describe("queryZaiQuota", () => {
                     usage: 70,
                     percentage: 70,
                     nextResetTime: 1_736_121_600_000,
+                  },
+                ],
+              },
+            }),
+            { status: 200 },
+          ),
+      ) as any,
+    );
+
+    const out = await queryZaiQuota();
+    expect(out && out.success ? out.windows.weekly : undefined).toEqual({
+      percentRemaining: 30,
+      resetTimeIso: "2025-01-06T00:00:00.000Z",
+    });
+  });
+
+  it("still uses the weekly unit when it appears before the daily token window", async () => {
+    await mockZaiAuth();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: 0,
+              msg: "ok",
+              success: true,
+              data: {
+                level: "pro",
+                limits: [
+                  {
+                    type: "TOKENS_LIMIT",
+                    unit: 6,
+                    number: 100,
+                    usage: 70,
+                    percentage: 70,
+                    nextResetTime: 1_736_121_600_000,
+                  },
+                  {
+                    type: "TOKENS_LIMIT",
+                    unit: 4,
+                    number: 100,
+                    usage: 20,
+                    percentage: 20,
+                    nextResetTime: 1_735_862_400_000,
                   },
                 ],
               },

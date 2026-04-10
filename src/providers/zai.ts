@@ -67,8 +67,8 @@ export const zaiProvider: QuotaProvider = {
     if (style === "classic") {
       const windows: Array<{ name: string; percentRemaining: number; resetTimeIso?: string }> = [];
 
-      if (result.windows.hourly) {
-        windows.push({ name: "Hourly", ...result.windows.hourly });
+      if (result.windows.fiveHour) {
+        windows.push({ name: "5h", ...result.windows.fiveHour });
       }
       if (result.windows.weekly) {
         windows.push({ name: "Weekly", ...result.windows.weekly });
@@ -105,14 +105,14 @@ export const zaiProvider: QuotaProvider = {
     const entries: QuotaToastEntry[] = [];
     const group = result.label;
 
-    const hourly = result.windows.hourly;
-    if (hourly) {
+    const fiveHour = result.windows.fiveHour;
+    if (fiveHour) {
       entries.push({
-        name: `${group} Hourly`,
+        name: `${group} 5h`,
         group,
-        label: "Hourly:",
-        percentRemaining: hourly.percentRemaining,
-        resetTimeIso: hourly.resetTimeIso,
+        label: "5h:",
+        percentRemaining: fiveHour.percentRemaining,
+        resetTimeIso: fiveHour.resetTimeIso,
       });
     }
 

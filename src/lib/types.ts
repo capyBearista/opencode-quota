@@ -364,7 +364,7 @@ export interface ZaiQuotaResult {
   success: true;
   label: string;
   windows: {
-    hourly?: { percentRemaining: number; resetTimeIso?: string };
+    fiveHour?: { percentRemaining: number; resetTimeIso?: string };
     weekly?: { percentRemaining: number; resetTimeIso?: string };
     mcp?: { percentRemaining: number; resetTimeIso?: string };
   };
