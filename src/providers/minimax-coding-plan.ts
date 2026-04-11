@@ -11,7 +11,7 @@ import {
 } from "../lib/minimax-auth.js";
 import { sanitizeDisplayText } from "../lib/display-sanitize.js";
 import { fetchWithTimeout } from "../lib/http.js";
-import { isAnyProviderIdAvailable } from "../lib/provider-availability.js";
+import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import { normalizeQuotaProviderId } from "../lib/provider-metadata.js";
 import type { MiniMaxResult, MiniMaxResultEntry } from "../lib/types.js";
 
@@ -211,9 +211,9 @@ export const minimaxCodingPlanProvider: QuotaProvider = {
   id: "minimax-coding-plan",
 
   async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    const providerAvailable = await isAnyProviderIdAvailable({
+    const providerAvailable = await isCanonicalProviderAvailable({
       ctx,
-      candidateIds: ["minimax-coding-plan", "minimax"],
+      providerId: "minimax-coding-plan",
       fallbackOnError: false,
     });
     if (!providerAvailable) {

@@ -114,7 +114,21 @@ describe("provider-metadata", () => {
       "github-copilot-chat",
     ]);
     expect(QUOTA_PROVIDER_RUNTIME_IDS.anthropic).toEqual(["anthropic"]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS.openai).toEqual(["openai", "chatgpt", "codex"]);
     expect(QUOTA_PROVIDER_RUNTIME_IDS.cursor).toEqual(["cursor", "cursor-acp"]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS.firmware).toEqual(["firmware", "firmware-ai"]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS.chutes).toEqual(["chutes", "chutes-ai"]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS["google-antigravity"]).toEqual([
+      "google-antigravity",
+      "google",
+      "antigravity",
+    ]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS.zai).toEqual(["zai", "glm", "zai-coding-plan"]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS.nanogpt).toEqual(["nanogpt", "nano-gpt"]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS["minimax-coding-plan"]).toEqual([
+      "minimax-coding-plan",
+      "minimax",
+    ]);
   });
 
   it("keeps runtime ids distinct from broad normalization aliases", () => {
@@ -125,7 +139,15 @@ describe("provider-metadata", () => {
       "github-copilot-chat",
     ]);
     expect(getQuotaProviderRuntimeIds("claude")).toEqual(["anthropic"]);
+    expect(getQuotaProviderRuntimeIds("openai")).toEqual(["openai", "chatgpt", "codex"]);
     expect(getQuotaProviderRuntimeIds("open-cursor")).toEqual(["cursor", "cursor-acp"]);
+    expect(getQuotaProviderRuntimeIds("google-antigravity")).toEqual([
+      "google-antigravity",
+      "google",
+      "antigravity",
+    ]);
+    expect(getQuotaProviderRuntimeIds("zai")).toEqual(["zai", "glm", "zai-coding-plan"]);
+    expect(getQuotaProviderRuntimeIds("minimax")).toEqual(["minimax-coding-plan", "minimax"]);
     expect(getQuotaProviderRuntimeIds("not-a-provider")).toEqual([]);
   });
 

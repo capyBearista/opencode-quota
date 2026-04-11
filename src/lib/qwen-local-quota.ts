@@ -1,6 +1,7 @@
-import { mkdir, readFile, rename, rm, writeFile } from "fs/promises";
-import { dirname, join } from "path";
+import { readFile } from "fs/promises";
+import { join } from "path";
 
+import { writeJsonAtomic } from "./atomic-json.js";
 import type { AlibabaCodingPlanTier } from "./types.js";
 import { clampPercent } from "./format-utils.js";
 import { getOpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
@@ -207,40 +208,6 @@ async function readJsonState<T>(path: string, fallback: T, normalize: (raw: unkn
   }
 }
 
-async function writeStateToDisk<T>(path: string, state: T): Promise<void> {
-  const dir = dirname(path);
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  await mkdir(dir, { recursive: true });
-  await writeFile(tmp, JSON.stringify(state, null, 2), "utf-8");
-
-  const safeRm = async (target: string): Promise<void> => {
-    try {
-      await rm(target, { force: true });
-    } catch {
-      // best effort cleanup
-    }
-  };
-
-  try {
-    await rename(tmp, path);
-  } catch (err) {
-    const code =
-      err && typeof err === "object" && "code" in err
-        ? String((err as { code?: unknown }).code)
-        : "";
-    const shouldRetryAsReplace =
-      code === "EPERM" || code === "EEXIST" || code === "EACCES" || code === "ENOTEMPTY";
-
-    if (!shouldRetryAsReplace) {
-      await safeRm(tmp);
-      throw err;
-    }
-
-    await safeRm(path);
-    await rename(tmp, path);
-  }
-}
-
 function computeRollingWindow(params: {
   recent: number[];
   nowMs: number;
@@ -298,7 +265,7 @@ export async function recordQwenCompletion(params?: { atMs?: number }): Promise<
     updatedAt: nowMs,
   };
 
-  await writeStateToDisk(path, next);
+  await writeJsonAtomic(path, next);
   return next;
 }
 
@@ -316,7 +283,7 @@ export async function recordAlibabaCodingPlanCompletion(params?: {
     updatedAt: nowMs,
   };
 
-  await writeStateToDisk(path, next);
+  await writeJsonAtomic(path, next);
   return next;
 }
 

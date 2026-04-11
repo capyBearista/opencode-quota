@@ -12,16 +12,10 @@ import { clampPercent, fmtUsdAmount } from "./format-utils.js";
 import { fetchWithTimeout } from "./http.js";
 import {
   getNanoGptKeyDiagnostics,
-  hasNanoGptApiKey,
   resolveNanoGptApiKey,
+  hasNanoGptApiKey,
   type NanoGptKeySource,
 } from "./nanogpt-config.js";
-
-type NanoGptApiAuth = {
-  type: "api";
-  key: string;
-  source: NanoGptKeySource;
-};
 
 type NanoGptRecord = Record<string, unknown>;
 
@@ -215,12 +209,6 @@ function parseNanoGptBalance(payload: unknown): NanoGptBalance {
   };
 }
 
-async function readNanoGptAuth(): Promise<NanoGptApiAuth | null> {
-  const result = await resolveNanoGptApiKey();
-  if (!result) return null;
-  return { type: "api", key: result.key, source: result.source };
-}
-
 async function fetchNanoGptUsage(headers: Record<string, string>): Promise<
   | { success: true; subscription: NanoGptSubscription }
   | { success: false; message: string }
@@ -279,11 +267,11 @@ async function fetchNanoGptBalance(headers: Record<string, string>): Promise<
   }
 }
 
-export async function hasNanoGptApiKeyConfigured(): Promise<boolean> {
-  return await hasNanoGptApiKey();
-}
-
-export { getNanoGptKeyDiagnostics, type NanoGptKeySource } from "./nanogpt-config.js";
+export {
+  getNanoGptKeyDiagnostics,
+  hasNanoGptApiKey as hasNanoGptApiKeyConfigured,
+  type NanoGptKeySource,
+} from "./nanogpt-config.js";
 
 export function formatNanoGptBalanceValue(balance: {
   usdBalance?: number;
@@ -301,11 +289,11 @@ export function formatNanoGptBalanceValue(balance: {
 }
 
 export async function queryNanoGptQuota(): Promise<NanoGptResult> {
-  const auth = await readNanoGptAuth();
-  if (!auth) return null;
+  const resolved = await resolveNanoGptApiKey();
+  if (!resolved) return null;
 
   const headers = {
-    "x-api-key": auth.key,
+    "x-api-key": resolved.key,
     "User-Agent": USER_AGENT,
   };
 

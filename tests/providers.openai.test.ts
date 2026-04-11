@@ -54,7 +54,7 @@ describe("openai provider", () => {
     expectAttemptedWithErrorLabel(out, "OpenAI");
   });
 
-  it("is available when provider ids include openai/chatgpt/codex/opencode", async () => {
+  it("is available when provider ids include openai/chatgpt/codex", async () => {
     const { hasOpenAIOAuthCached } = await import("../src/lib/openai.js");
     (hasOpenAIOAuthCached as any).mockResolvedValue(false);
 
@@ -72,9 +72,9 @@ describe("openai provider", () => {
     await expect(openaiProvider.isAvailable(makeCtx(["openai"]))).resolves.toBe(true);
     await expect(openaiProvider.isAvailable(makeCtx(["chatgpt"]))).resolves.toBe(true);
     await expect(openaiProvider.isAvailable(makeCtx(["codex"]))).resolves.toBe(true);
-    await expect(openaiProvider.isAvailable(makeCtx(["opencode"]))).resolves.toBe(true);
+    await expect(openaiProvider.isAvailable(makeCtx(["opencode"]))).resolves.toBe(false);
     await expect(openaiProvider.isAvailable(makeCtx(["zai"]))).resolves.toBe(false);
-    expect(hasOpenAIOAuthCached).toHaveBeenCalledTimes(1);
+    expect(hasOpenAIOAuthCached).toHaveBeenCalledTimes(2);
     expect(hasOpenAIOAuthCached).toHaveBeenCalledWith({ maxAgeMs: 5_000 });
   });
 

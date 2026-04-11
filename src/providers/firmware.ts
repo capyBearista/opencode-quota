@@ -5,20 +5,18 @@
 import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "../lib/entries.js";
 import { fmtUsdAmount } from "../lib/format-utils.js";
 import { hasFirmwareApiKeyConfigured, queryFirmwareQuota } from "../lib/firmware.js";
+import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 
 export const firmwareProvider: QuotaProvider = {
   id: "firmware",
 
   async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    // Best-effort: if OpenCode exposes a firmware provider, prefer that.
-    // Otherwise, fallback to local auth.json presence.
-    try {
-      const resp = await ctx.client.config.providers();
-      const ids = new Set((resp.data?.providers ?? []).map((p) => p.id));
-      if (ids.has("firmware") || ids.has("firmware-ai")) return true;
-    } catch {
-      // ignore
-    }
+    const providerAvailable = await isCanonicalProviderAvailable({
+      ctx,
+      providerId: "firmware",
+      fallbackOnError: false,
+    });
+    if (providerAvailable) return true;
 
     return await hasFirmwareApiKeyConfigured();
   },

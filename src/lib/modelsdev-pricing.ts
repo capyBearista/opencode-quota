@@ -1,7 +1,8 @@
 import { readFileSync } from "fs";
-import { mkdir, readFile, rename, rm, writeFile } from "fs/promises";
-import { dirname, join } from "path";
+import { readFile } from "fs/promises";
+import { join } from "path";
 
+import { writeJsonAtomic } from "./atomic-json.js";
 import { fetchWithTimeout } from "./http.js";
 import { getOpencodeRuntimeDirs, type OpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
 import type { PricingSnapshotSource } from "./types.js";
@@ -345,41 +346,6 @@ function normalizeRefreshState(raw: unknown): PricingRefreshStateV1 | null {
   return out;
 }
 
-async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
-  const dir = dirname(path);
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-  await mkdir(dir, { recursive: true });
-  await writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
-
-  const safeRm = async (target: string): Promise<void> => {
-    try {
-      await rm(target, { force: true });
-    } catch {
-      // best-effort cleanup
-    }
-  };
-
-  try {
-    await rename(tmp, path);
-  } catch (err) {
-    const code =
-      err && typeof err === "object" && "code" in err
-        ? String((err as { code?: unknown }).code)
-        : "";
-    const shouldRetryAsReplace =
-      code === "EPERM" || code === "EEXIST" || code === "EACCES" || code === "ENOTEMPTY";
-
-    if (!shouldRetryAsReplace) {
-      await safeRm(tmp);
-      throw err;
-    }
-
-    await safeRm(path);
-    await rename(tmp, path);
-  }
-}
-
 async function readRefreshState(path: string): Promise<PricingRefreshStateV1 | null> {
   try {
     const raw = await readFile(path, "utf-8");
@@ -609,7 +575,7 @@ export async function maybeRefreshPricingSnapshot(
           },
           providers: baseSnapshot.providers,
         };
-        await writeJsonAtomic(snapshotPath, refreshedSnapshot);
+        await writeJsonAtomic(snapshotPath, refreshedSnapshot, { trailingNewline: true });
         applySnapshotSelection({
           runtimeDirs,
           bootstrapSnapshotOverride: opts.bootstrapSnapshotOverride,
@@ -626,7 +592,7 @@ export async function maybeRefreshPricingSnapshot(
           lastModified: response.headers.get("last-modified") ?? attemptingState.lastModified,
         };
         try {
-          await writeJsonAtomic(statePath, nextState);
+          await writeJsonAtomic(statePath, nextState, { trailingNewline: true });
         } catch {
           // best effort; keep refreshed in-memory/runtime snapshot active
         }
@@ -651,7 +617,7 @@ export async function maybeRefreshPricingSnapshot(
         throw new Error("Refusing to persist empty pricing snapshot from models.dev");
       }
 
-      await writeJsonAtomic(snapshotPath, snapshot);
+      await writeJsonAtomic(snapshotPath, snapshot, { trailingNewline: true });
       applySnapshotSelection({
         runtimeDirs,
         bootstrapSnapshotOverride: opts.bootstrapSnapshotOverride,
@@ -669,7 +635,7 @@ export async function maybeRefreshPricingSnapshot(
       };
 
       try {
-        await writeJsonAtomic(statePath, nextState);
+        await writeJsonAtomic(statePath, nextState, { trailingNewline: true });
       } catch {
         // best effort; snapshot has already been updated
       }
@@ -690,7 +656,7 @@ export async function maybeRefreshPricingSnapshot(
       };
 
       try {
-        await writeJsonAtomic(statePath, nextState);
+        await writeJsonAtomic(statePath, nextState, { trailingNewline: true });
       } catch {
         // best effort; report original fetch/refresh error
       }

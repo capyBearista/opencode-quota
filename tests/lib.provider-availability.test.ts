@@ -42,6 +42,44 @@ describe("provider availability", () => {
     ).resolves.toBe(true);
   });
 
+  it("matches expanded runtime aliases for non-special providers through metadata", async () => {
+    await expect(
+      isCanonicalProviderAvailable({
+        ctx: makeCtx({ ids: ["chatgpt"] }),
+        providerId: "openai",
+        fallbackOnError: false,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      isCanonicalProviderAvailable({
+        ctx: makeCtx({ ids: ["opencode"] }),
+        providerId: "openai",
+        fallbackOnError: false,
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      isCanonicalProviderAvailable({
+        ctx: makeCtx({ ids: ["glm"] }),
+        providerId: "zai",
+        fallbackOnError: false,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      isCanonicalProviderAvailable({
+        ctx: makeCtx({ ids: ["antigravity"] }),
+        providerId: "google-antigravity",
+        fallbackOnError: false,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      isCanonicalProviderAvailable({
+        ctx: makeCtx({ ids: ["minimax"] }),
+        providerId: "minimax-coding-plan",
+        fallbackOnError: false,
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("does not treat broad normalization aliases as runtime provider ids", async () => {
     await expect(
       isCanonicalProviderAvailable({

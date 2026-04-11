@@ -23,19 +23,8 @@ function formatUsageRight(window: { used: number; limit: number }): string {
 export const nanoGptProvider: QuotaProvider = {
   id: "nanogpt",
 
-  async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    const hasApiKey = await hasNanoGptApiKeyConfigured();
-    try {
-      const resp = await ctx.client.config.providers();
-      const ids = new Set((resp.data?.providers ?? []).map((provider) => provider.id));
-      if (ids.has("nanogpt") || ids.has("nano-gpt")) {
-        return hasApiKey;
-      }
-    } catch {
-      // Ignore provider lookup failures and fall back to key presence.
-    }
-
-    return hasApiKey;
+  async isAvailable(_ctx: QuotaProviderContext): Promise<boolean> {
+    return await hasNanoGptApiKeyConfigured();
   },
 
   matchesCurrentModel(model: string): boolean {

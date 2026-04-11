@@ -8,7 +8,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   fetchWithTimeout: vi.fn(),
-  isAnyProviderIdAvailable: vi.fn(),
+  isCanonicalProviderAvailable: vi.fn(),
   resolveMiniMaxAuthCached: vi.fn(),
 }));
 
@@ -22,7 +22,7 @@ vi.mock("../src/lib/http.js", () => ({
 }));
 
 vi.mock("../src/lib/provider-availability.js", () => ({
-  isAnyProviderIdAvailable: mocks.isAnyProviderIdAvailable,
+  isCanonicalProviderAvailable: mocks.isCanonicalProviderAvailable,
 }));
 
 import { minimaxCodingPlanProvider } from "../src/providers/minimax-coding-plan.js";
@@ -321,7 +321,7 @@ describe("minimax-coding-plan provider", () => {
     [{ state: "invalid", error: "Invalid API key" }, true],
     [{ state: "none" }, false],
   ])("isAvailable returns %s for auth state %j", async (authState, expected) => {
-    mocks.isAnyProviderIdAvailable.mockResolvedValueOnce(true);
+    mocks.isCanonicalProviderAvailable.mockResolvedValueOnce(true);
     mocks.resolveMiniMaxAuthCached.mockResolvedValueOnce(authState);
 
     const available = await minimaxCodingPlanProvider.isAvailable({} as any);
@@ -329,7 +329,7 @@ describe("minimax-coding-plan provider", () => {
   });
 
   it("returns false when auth exists but the minimax provider is not configured", async () => {
-    mocks.isAnyProviderIdAvailable.mockResolvedValueOnce(false);
+    mocks.isCanonicalProviderAvailable.mockResolvedValueOnce(false);
     mocks.resolveMiniMaxAuthCached.mockResolvedValueOnce({ state: "configured", apiKey: "test-key" });
 
     const available = await minimaxCodingPlanProvider.isAvailable({} as any);

@@ -10,8 +10,8 @@ import { sanitizeDisplaySnippet, sanitizeDisplayText } from "./display-sanitize.
 import { fetchWithTimeout } from "./http.js";
 import {
   resolveFirmwareApiKey,
-  hasFirmwareApiKey,
   getFirmwareKeyDiagnostics,
+  hasFirmwareApiKey,
   type FirmwareKeySource,
 } from "./firmware-config.js";
 
@@ -19,18 +19,6 @@ import {
 interface FirmwareQuotaV1Response {
   credits: number;
   reset: string | null;
-}
-
-type FirmwareApiAuth = {
-  type: "api";
-  key: string;
-  source: FirmwareKeySource;
-};
-
-async function readFirmwareAuth(): Promise<FirmwareApiAuth | null> {
-  const result = await resolveFirmwareApiKey();
-  if (!result) return null;
-  return { type: "api", key: result.key, source: result.source };
 }
 
 export type FirmwareResult =
@@ -49,21 +37,21 @@ export type FirmwareResetWindowResult =
 
 const FIRMWARE_QUOTA_URL = "https://app.firmware.ai/api/v1/quota";
 
-export async function hasFirmwareApiKeyConfigured(): Promise<boolean> {
-  return await hasFirmwareApiKey();
-}
-
-export { getFirmwareKeyDiagnostics, type FirmwareKeySource } from "./firmware-config.js";
+export {
+  getFirmwareKeyDiagnostics,
+  hasFirmwareApiKey as hasFirmwareApiKeyConfigured,
+  type FirmwareKeySource,
+} from "./firmware-config.js";
 
 export async function queryFirmwareQuota(): Promise<FirmwareResult> {
-  const auth = await readFirmwareAuth();
-  if (!auth) return null;
+  const resolved = await resolveFirmwareApiKey();
+  if (!resolved) return null;
 
   try {
     const resp = await fetchWithTimeout(FIRMWARE_QUOTA_URL, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${auth.key}`,
+        Authorization: `Bearer ${resolved.key}`,
         "User-Agent": "OpenCode-Quota-Toast/1.0",
       },
     });
@@ -102,8 +90,8 @@ export async function queryFirmwareQuota(): Promise<FirmwareResult> {
  * Deprecated: Firmware no longer documents a reset-window endpoint.
  */
 export async function resetFirmwareQuotaWindow(): Promise<FirmwareResetWindowResult> {
-  const auth = await readFirmwareAuth();
-  if (!auth) return null;
+  const resolved = await resolveFirmwareApiKey();
+  if (!resolved) return null;
 
   return {
     success: false,

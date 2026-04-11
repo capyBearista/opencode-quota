@@ -4,19 +4,18 @@
 
 import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "../lib/entries.js";
 import { queryChutesQuota, hasChutesApiKeyConfigured } from "../lib/chutes.js";
+import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 
 export const chutesProvider: QuotaProvider = {
   id: "chutes",
 
   async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    // Best-effort: if OpenCode exposes a chutes provider, prefer that.
-    try {
-      const resp = await ctx.client.config.providers();
-      const ids = new Set((resp.data?.providers ?? []).map((p) => p.id));
-      if (ids.has("chutes") || ids.has("chutes-ai")) return true;
-    } catch {
-      // ignore
-    }
+    const providerAvailable = await isCanonicalProviderAvailable({
+      ctx,
+      providerId: "chutes",
+      fallbackOnError: false,
+    });
+    if (providerAvailable) return true;
 
     return await hasChutesApiKeyConfigured();
   },

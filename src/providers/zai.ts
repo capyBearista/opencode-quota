@@ -11,7 +11,7 @@ import type {
   QuotaToastEntry,
 } from "../lib/entries.js";
 import { queryZaiQuota } from "../lib/zai.js";
-import { isAnyProviderIdAvailable } from "../lib/provider-availability.js";
+import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import {
   DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
   resolveZaiAuthCached,
@@ -21,10 +21,9 @@ export const zaiProvider: QuotaProvider = {
   id: "zai",
 
   async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    const providerAvailable = await isAnyProviderIdAvailable({
+    const providerAvailable = await isCanonicalProviderAvailable({
       ctx,
-      // Z.ai models typically use "zai" or "glm" provider ids.
-      candidateIds: ["zai", "glm", "zai-coding-plan"],
+      providerId: "zai",
       fallbackOnError: false,
     });
     if (!providerAvailable) {

@@ -73,6 +73,16 @@ export interface SessionTokenError {
   checkedPath?: string;
 }
 
+type BasicApiKeyDiagnostics = {
+  configured: boolean;
+  source: string | null;
+  checkedPaths: string[];
+};
+
+type NanoGptApiKeyDiagnostics = BasicApiKeyDiagnostics & {
+  authPaths: string[];
+};
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);
@@ -96,6 +106,68 @@ const STATUS_SAMPLE_LIMIT = 5;
 
 function joinOrNone(values: string[]): string {
   return values.length > 0 ? values.join(" | ") : "(none)";
+}
+
+function getDefaultBasicApiKeyDiagnostics(): BasicApiKeyDiagnostics {
+  return {
+    configured: false,
+    source: null,
+    checkedPaths: [],
+  };
+}
+
+async function readBasicApiKeyDiagnostics(
+  read: () => Promise<BasicApiKeyDiagnostics>,
+): Promise<BasicApiKeyDiagnostics> {
+  try {
+    return await read();
+  } catch {
+    return getDefaultBasicApiKeyDiagnostics();
+  }
+}
+
+function formatInlineApiKeyDiagnostics(label: string, diagnostics: BasicApiKeyDiagnostics): string {
+  return `- ${label}: configured=${diagnostics.configured ? "true" : "false"}${diagnostics.source ? ` source=${diagnostics.source}` : ""}${diagnostics.checkedPaths.length > 0 ? ` checked=${diagnostics.checkedPaths.join(" | ")}` : ""}`;
+}
+
+function appendBasicApiKeySection(params: {
+  lines: string[];
+  section: string;
+  label: string;
+  diagnostics: BasicApiKeyDiagnostics;
+}): void {
+  params.lines.push("");
+  params.lines.push(params.section);
+  params.lines.push(formatInlineApiKeyDiagnostics(params.label, params.diagnostics));
+}
+
+function getDefaultNanoGptApiKeyDiagnostics(): NanoGptApiKeyDiagnostics {
+  return {
+    ...getDefaultBasicApiKeyDiagnostics(),
+    authPaths: [],
+  };
+}
+
+async function readNanoGptApiKeyDiagnostics(
+  read: () => Promise<NanoGptApiKeyDiagnostics>,
+): Promise<NanoGptApiKeyDiagnostics> {
+  try {
+    return await read();
+  } catch {
+    return getDefaultNanoGptApiKeyDiagnostics();
+  }
+}
+
+function appendNanoGptApiKeySection(
+  lines: string[],
+  diagnostics: NanoGptApiKeyDiagnostics,
+): void {
+  lines.push("");
+  lines.push("nanogpt:");
+  lines.push(`- api_key_configured: ${diagnostics.configured ? "true" : "false"}`);
+  lines.push(`- api_key_source: ${diagnostics.source ?? "(none)"}`);
+  lines.push(`- api_key_checked_paths: ${joinOrNone(diagnostics.checkedPaths)}`);
+  lines.push(`- api_key_auth_paths: ${joinOrNone(diagnostics.authPaths)}`);
 }
 
 function fmtNanoGptMetric(value: number): string {
@@ -591,62 +663,24 @@ export async function buildQuotaStatusReport(params: {
     }
   }
 
-  // Firmware API key diagnostics
-  lines.push("");
-  lines.push("firmware:");
-  let firmwareDiag: { configured: boolean; source: string | null; checkedPaths: string[] } = {
-    configured: false,
-    source: null,
-    checkedPaths: [],
-  };
-  try {
-    firmwareDiag = await getFirmwareKeyDiagnostics();
-  } catch {
-    // ignore
-  }
-  lines.push(
-    `- firmware api key: configured=${firmwareDiag.configured ? "true" : "false"}${firmwareDiag.source ? ` source=${firmwareDiag.source}` : ""}${firmwareDiag.checkedPaths.length > 0 ? ` checked=${firmwareDiag.checkedPaths.join(" | ")}` : ""}`,
-  );
+  const firmwareDiag = await readBasicApiKeyDiagnostics(getFirmwareKeyDiagnostics);
+  appendBasicApiKeySection({
+    lines,
+    section: "firmware:",
+    label: "firmware api key",
+    diagnostics: firmwareDiag,
+  });
 
-  // Chutes API key diagnostics
-  lines.push("");
-  lines.push("chutes:");
-  let chutesDiag: { configured: boolean; source: string | null; checkedPaths: string[] } = {
-    configured: false,
-    source: null,
-    checkedPaths: [],
-  };
-  try {
-    chutesDiag = await getChutesKeyDiagnostics();
-  } catch {
-    // ignore
-  }
-  lines.push(
-    `- chutes api key: configured=${chutesDiag.configured ? "true" : "false"}${chutesDiag.source ? ` source=${chutesDiag.source}` : ""}${chutesDiag.checkedPaths.length > 0 ? ` checked=${chutesDiag.checkedPaths.join(" | ")}` : ""}`,
-  );
+  const chutesDiag = await readBasicApiKeyDiagnostics(getChutesKeyDiagnostics);
+  appendBasicApiKeySection({
+    lines,
+    section: "chutes:",
+    label: "chutes api key",
+    diagnostics: chutesDiag,
+  });
 
-  lines.push("");
-  lines.push("nanogpt:");
-  let nanoGptDiag: {
-    configured: boolean;
-    source: string | null;
-    checkedPaths: string[];
-    authPaths: string[];
-  } = {
-    configured: false,
-    source: null,
-    checkedPaths: [],
-    authPaths: [],
-  };
-  try {
-    nanoGptDiag = await getNanoGptKeyDiagnostics();
-  } catch {
-    // ignore
-  }
-  lines.push(`- api_key_configured: ${nanoGptDiag.configured ? "true" : "false"}`);
-  lines.push(`- api_key_source: ${nanoGptDiag.source ?? "(none)"}`);
-  lines.push(`- api_key_checked_paths: ${joinOrNone(nanoGptDiag.checkedPaths)}`);
-  lines.push(`- api_key_auth_paths: ${joinOrNone(nanoGptDiag.authPaths)}`);
+  const nanoGptDiag = await readNanoGptApiKeyDiagnostics(getNanoGptKeyDiagnostics);
+  appendNanoGptApiKeySection(lines, nanoGptDiag);
   if (nanoGptDiag.configured) {
     try {
       const nanoGptQuota = await queryNanoGptQuota();

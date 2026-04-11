@@ -11,8 +11,8 @@ import { fetchWithTimeout } from "./http.js";
 import { clampPercent } from "./format-utils.js";
 import {
   resolveChutesApiKey,
-  hasChutesApiKey,
   getChutesKeyDiagnostics,
+  hasChutesApiKey,
   type ChutesKeySource,
 } from "./chutes-config.js";
 
@@ -29,35 +29,23 @@ function getNextDailyResetUtc(): string {
   return reset.toISOString();
 }
 
-type ChutesApiAuth = {
-  type: "api";
-  key: string;
-  source: ChutesKeySource;
-};
-
-async function readChutesAuth(): Promise<ChutesApiAuth | null> {
-  const result = await resolveChutesApiKey();
-  if (!result) return null;
-  return { type: "api", key: result.key, source: result.source };
-}
-
 const CHUTES_QUOTA_URL = "https://api.chutes.ai/users/me/quota_usage/me";
 
-export async function hasChutesApiKeyConfigured(): Promise<boolean> {
-  return await hasChutesApiKey();
-}
-
-export { getChutesKeyDiagnostics, type ChutesKeySource } from "./chutes-config.js";
+export {
+  getChutesKeyDiagnostics,
+  hasChutesApiKey as hasChutesApiKeyConfigured,
+  type ChutesKeySource,
+} from "./chutes-config.js";
 
 export async function queryChutesQuota(): Promise<ChutesResult> {
-  const auth = await readChutesAuth();
-  if (!auth) return null;
+  const resolved = await resolveChutesApiKey();
+  if (!resolved) return null;
 
   try {
     const resp = await fetchWithTimeout(CHUTES_QUOTA_URL, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${auth.key}`,
+        Authorization: `Bearer ${resolved.key}`,
         "User-Agent": "OpenCode-Quota-Toast/1.0",
       },
     });

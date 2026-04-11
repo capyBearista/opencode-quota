@@ -13,16 +13,16 @@ import {
   hasOpenAIOAuthCached,
   queryOpenAIQuota,
 } from "../lib/openai.js";
-import { isAnyProviderIdAvailable } from "../lib/provider-availability.js";
+import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 
 export const openaiProvider: QuotaProvider = {
   id: "openai",
 
   async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
     // Best-effort: if provider lookup errors, preserve current permissive fallback.
-    const availableByProviderId = await isAnyProviderIdAvailable({
+    const availableByProviderId = await isCanonicalProviderAvailable({
       ctx,
-      candidateIds: ["openai", "chatgpt", "codex", "opencode"],
+      providerId: "openai",
       fallbackOnError: true,
     });
 

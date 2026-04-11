@@ -33,19 +33,10 @@ async function isAccountsConfigured(): Promise<boolean> {
 export const googleAntigravityProvider: QuotaProvider = {
   id: "google-antigravity",
 
-  async isAvailable(ctx: QuotaProviderContext): Promise<boolean> {
-    try {
-      const resp = await ctx.client.config.providers();
-      const ids = new Set((resp.data?.providers ?? []).map((p) => p.id));
-      if (ids.has("google") || ids.has("antigravity")) return true;
-
-      // Even if OpenCode doesn't report the provider (or uses different ids),
-      // the presence of the accounts file is enough to attempt quota.
-      return await isAccountsConfigured();
-    } catch {
-      // Best-effort fallback: if accounts file exists, consider provider available.
-      return await isAccountsConfigured();
-    }
+  async isAvailable(_ctx: QuotaProviderContext): Promise<boolean> {
+    // Google quota always depends on the Antigravity accounts file, so the
+    // provider should only surface as available when that file is present.
+    return await isAccountsConfigured();
   },
 
   matchesCurrentModel(model: string): boolean {

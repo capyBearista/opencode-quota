@@ -78,16 +78,16 @@ export const QUOTA_PROVIDER_ID_SYNONYMS: Readonly<Record<string, string>> = {
 export const QUOTA_PROVIDER_RUNTIME_IDS: QuotaProviderRuntimeIds = {
   anthropic: ["anthropic"],
   copilot: ["copilot", "github-copilot", "copilot-chat", "github-copilot-chat"],
-  openai: ["openai"],
+  openai: ["openai", "chatgpt", "codex"],
   cursor: ["cursor", "cursor-acp"],
   "qwen-code": ["qwen-code"],
   "alibaba-coding-plan": ["alibaba-coding-plan"],
-  firmware: ["firmware"],
-  chutes: ["chutes"],
-  "google-antigravity": ["google-antigravity"],
-  zai: ["zai"],
-  nanogpt: ["nanogpt"],
-  "minimax-coding-plan": ["minimax-coding-plan"],
+  firmware: ["firmware", "firmware-ai"],
+  chutes: ["chutes", "chutes-ai"],
+  "google-antigravity": ["google-antigravity", "google", "antigravity"],
+  zai: ["zai", "glm", "zai-coding-plan"],
+  nanogpt: ["nanogpt", "nano-gpt"],
+  "minimax-coding-plan": ["minimax-coding-plan", "minimax"],
 };
 
 export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [

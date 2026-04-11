@@ -12,6 +12,10 @@ vi.mock("../src/lib/firmware.js", () => ({
   hasFirmwareApiKeyConfigured: vi.fn(),
 }));
 
+vi.mock("../src/lib/provider-availability.js", () => ({
+  isCanonicalProviderAvailable: vi.fn(),
+}));
+
 describe("firmware provider", () => {
   it("returns attempted:false when not configured", async () => {
     const { queryFirmwareQuota } = await import("../src/lib/firmware.js");
@@ -50,5 +54,21 @@ describe("firmware provider", () => {
 
     const out = await firmwareProvider.fetch({} as any);
     expectAttemptedWithErrorLabel(out, "Firmware");
+  });
+
+  it("is available when firmware provider ids are reported by metadata", async () => {
+    const { isCanonicalProviderAvailable } = await import("../src/lib/provider-availability.js");
+    (isCanonicalProviderAvailable as any).mockResolvedValueOnce(true);
+
+    await expect(firmwareProvider.isAvailable({} as any)).resolves.toBe(true);
+  });
+
+  it("falls back to trusted API key presence when provider ids are absent", async () => {
+    const { isCanonicalProviderAvailable } = await import("../src/lib/provider-availability.js");
+    const { hasFirmwareApiKeyConfigured } = await import("../src/lib/firmware.js");
+    (isCanonicalProviderAvailable as any).mockResolvedValueOnce(false);
+    (hasFirmwareApiKeyConfigured as any).mockResolvedValueOnce(true);
+
+    await expect(firmwareProvider.isAvailable({} as any)).resolves.toBe(true);
   });
 });
