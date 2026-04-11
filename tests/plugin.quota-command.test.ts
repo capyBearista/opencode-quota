@@ -129,7 +129,7 @@ describe("/quota command behavior", () => {
     });
   });
 
-  it("applies pricing snapshot selection from config during plugin init", async () => {
+  it("applies pricing snapshot selection from config on first use", async () => {
     mocks.loadConfig.mockResolvedValueOnce({
       ...DEFAULT_CONFIG,
       enabled: true,
@@ -142,9 +142,15 @@ describe("/quota command behavior", () => {
     const { QuotaToastPlugin } = await import("../src/plugin.js");
     const client = createClient();
 
-    await QuotaToastPlugin({ client } as any);
-    await Promise.resolve();
-    await Promise.resolve();
+    const hooks = await QuotaToastPlugin({ client } as any);
+
+    // Config is deferred — trigger a command to force the first config load.
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "session-init",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
 
     expect(mocks.setPricingSnapshotSelection).toHaveBeenCalledWith("bundled");
     expect(mocks.setPricingSnapshotAutoRefresh).toHaveBeenCalledWith(5);
@@ -163,7 +169,9 @@ describe("/quota command behavior", () => {
       fetch: vi.fn().mockResolvedValue({
         attempted: true,
         entries: [],
-        errors: [{ label: "Alibaba Coding Plan", message: "Unsupported Alibaba Coding Plan tier: max" }],
+        errors: [
+          { label: "Alibaba Coding Plan", message: "Unsupported Alibaba Coding Plan tier: max" },
+        ],
       }),
     };
     mocks.getProviders.mockReturnValue([provider]);
@@ -356,7 +364,9 @@ describe("/quota command behavior", () => {
     expect(provider.fetch).not.toHaveBeenCalled();
     expect(client.session.prompt).toHaveBeenCalledTimes(1);
     const injected = client.session.prompt.mock.calls[0]?.[0]?.body?.parts?.[0]?.text ?? "";
-    expect(injected).toContain("No enabled quota providers matched the current model: openai/gpt-5.");
+    expect(injected).toContain(
+      "No enabled quota providers matched the current model: openai/gpt-5.",
+    );
     expect(injected).not.toContain("Providers detected");
   });
 
@@ -555,8 +565,10 @@ describe("/quota command behavior", () => {
       sessionID: call?.[0]?.path?.id,
       text: call?.[0]?.body?.parts?.[0]?.text ?? "",
     }));
-    const sessionAOutput = promptOutputs.find((output) => output.sessionID === "session-a")?.text ?? "";
-    const sessionBOutput = promptOutputs.find((output) => output.sessionID === "session-b")?.text ?? "";
+    const sessionAOutput =
+      promptOutputs.find((output) => output.sessionID === "session-a")?.text ?? "";
+    const sessionBOutput =
+      promptOutputs.find((output) => output.sessionID === "session-b")?.text ?? "";
 
     expect(sessionAOutput).toContain("session-a-model");
     expect(sessionAOutput).not.toContain("session-b-model");
@@ -582,7 +594,10 @@ describe("/quota command behavior", () => {
         }),
     };
     mocks.getProviders.mockReturnValue([provider]);
-    mocks.resolveQwenLocalPlanCached.mockResolvedValue({ state: "qwen_free", accessToken: "token" });
+    mocks.resolveQwenLocalPlanCached.mockResolvedValue({
+      state: "qwen_free",
+      accessToken: "token",
+    });
 
     const { QuotaToastPlugin } = await import("../src/plugin.js");
     const client = createClient("qwen-code/qwen3-coder-plus");
@@ -745,9 +760,17 @@ describe("/quota command behavior", () => {
     const { QuotaToastPlugin } = await import("../src/plugin.js");
     const client = createClient();
     const hooks = await QuotaToastPlugin({ client } as any);
-    await Promise.resolve();
+
+    // Force first config load so deferred init completes before our assertion.
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "session-warmup",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
     await Promise.resolve();
     mocks.maybeRefreshPricingSnapshot.mockClear();
+    client.session.prompt.mockClear();
 
     await expect(
       hooks["command.execute.before"]?.({
