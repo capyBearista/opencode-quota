@@ -1,4 +1,10 @@
 # OpenCode Quota
+[![npm version](https://img.shields.io/npm/v/%40slkiser%2Fopencode-quota)](https://www.npmjs.com/package/@slkiser/opencode-quota)
+[![npm downloads](https://img.shields.io/npm/dm/%40slkiser%2Fopencode-quota)](https://www.npmjs.com/package/@slkiser/opencode-quota)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/slkiser/opencode-quota/ci.yml?branch=main&label=CI)](https://github.com/slkiser/opencode-quota/actions/workflows/ci.yml)
+[![Node >=18](https://img.shields.io/badge/node-%3E%3D18-339933)](./package.json)
+
 
 `opencode-quota` gives you two things:
 
