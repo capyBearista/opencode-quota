@@ -82,11 +82,11 @@ async function seedReferenceRoot(repoRoot: string) {
             version: "1.0.0",
           },
           "opencode-cursor-oauth": {
-            npmUrl: "https://www.npmjs.com/package/opencode-cursor-oauth/v/1.0.0",
-            packageName: "opencode-cursor-oauth",
+            npmUrl: "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/1.0.0",
+            packageName: "@playwo/opencode-cursor-oauth",
             publishedAt: "2026-03-01T00:00:00.000Z",
             referenceDir: "references/upstream-plugins/opencode-cursor-oauth",
-            repo: "ephraimduncan/opencode-cursor",
+            repo: "PoolPirate/opencode-cursor",
             version: "1.0.0",
           },
           "opencode-qwencode-auth": {
@@ -141,13 +141,13 @@ describe("upstream-plugin-sync", () => {
       [
         "opencode-cursor-oauth",
         {
-          npmUrl: "https://www.npmjs.com/package/opencode-cursor-oauth/v/2.0.0",
-          packageName: "opencode-cursor-oauth",
+          npmUrl: "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/2.0.0",
+          packageName: "@playwo/opencode-cursor-oauth",
           pluginId: "opencode-cursor-oauth",
           publishedAt: "2026-03-20T00:00:00.000Z",
           referenceDir: "references/upstream-plugins/opencode-cursor-oauth",
-          repo: "ephraimduncan/opencode-cursor",
-          tarballUrl: "https://example.test/opencode-cursor-oauth-2.0.0.tgz",
+          repo: "PoolPirate/opencode-cursor",
+          tarballUrl: "https://example.test/@playwo/opencode-cursor-oauth/-/opencode-cursor-oauth-2.0.0.tgz",
           version: "2.0.0",
         },
       ],
@@ -186,7 +186,7 @@ describe("upstream-plugin-sync", () => {
       readFile(path.join(referenceRoot, "opencode-antigravity-auth", "dist", "src", "constants.js"), "utf8"),
     ).resolves.toContain("REDACTED_GOOGLE_OAUTH_CLIENT_SECRET");
     await expect(readFile(path.join(referenceRoot, "opencode-cursor-oauth", "package.json"), "utf8")).resolves.toContain(
-      "\"name\": \"opencode-cursor-oauth\"",
+      "\"name\": \"@playwo/opencode-cursor-oauth\"",
     );
     await expect(readFile(path.join(referenceRoot, "opencode-cursor-oauth", "dist", "models.js"), "utf8")).resolves.toContain(
       "if (discovered && discovered.length > 0) {",
@@ -195,6 +195,12 @@ describe("upstream-plugin-sync", () => {
       "messages: normalizedMessages",
     );
     await expect(readFile(path.join(referenceRoot, "lock.json"), "utf8")).resolves.toContain("\"version\": \"2.0.0\"");
+    await expect(readFile(path.join(referenceRoot, "lock.json"), "utf8")).resolves.toContain(
+      "\"packageName\": \"@playwo/opencode-cursor-oauth\"",
+    );
+    await expect(readFile(path.join(referenceRoot, "lock.json"), "utf8")).resolves.toContain(
+      "\"repo\": \"PoolPirate/opencode-cursor\"",
+    );
   });
 
   it("leaves the committed reference tree untouched when staging fails", async () => {

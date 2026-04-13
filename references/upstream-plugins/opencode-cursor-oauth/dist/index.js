@@ -4,7 +4,7 @@ import { startProxy } from "./proxy";
 const CURSOR_PROVIDER_ID = "cursor";
 /**
  * OpenCode plugin that provides Cursor authentication and model access.
- * Register in opencode.json: { "plugin": ["opencode-cursor-oauth"] }
+ * Register in opencode.json: { "plugin": ["@playwo/opencode-cursor-oauth"] }
  */
 export const CursorAuthPlugin = async (input) => {
     return {

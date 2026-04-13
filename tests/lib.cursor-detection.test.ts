@@ -65,11 +65,11 @@ describe("cursor detection", () => {
     expect(result.presentPaths).toContain("/tmp/home/.config/cursor/auth.json");
   });
 
-  it("detects the OAuth plugin package and provider.cursor config", async () => {
+  it("detects the canonical Cursor companion package and provider.cursor config", async () => {
     mockFiles.set(
       "/tmp/config/opencode.json",
       JSON.stringify({
-        plugin: ["opencode-cursor-oauth"],
+        plugin: ["@playwo/opencode-cursor-oauth"],
         provider: {
           cursor: {
             name: "Cursor",
@@ -78,12 +78,45 @@ describe("cursor detection", () => {
       }),
     );
 
-    const { inspectCursorOpenCodeIntegration } = await import("../src/lib/cursor-detection.js");
+    const {
+      CURSOR_CANONICAL_PLUGIN_PACKAGE,
+      inspectCursorOpenCodeIntegration,
+    } = await import("../src/lib/cursor-detection.js");
     const result = await inspectCursorOpenCodeIntegration();
 
+    expect(CURSOR_CANONICAL_PLUGIN_PACKAGE).toBe("@playwo/opencode-cursor-oauth");
     expect(result.pluginEnabled).toBe(true);
     expect(result.providerConfigured).toBe(true);
     expect(result.matchedPaths).toEqual(["/tmp/config/opencode.json"]);
+  });
+
+  it("keeps legacy Cursor plugin names as compatibility aliases", async () => {
+    const aliases = [
+      "opencode-cursor-oauth",
+      "opencode-cursor",
+      "cursor-acp",
+      "open-cursor",
+      "@rama_nigg/open-cursor",
+      "PoolPirate/opencode-cursor",
+    ];
+
+    const { inspectCursorOpenCodeIntegration } = await import("../src/lib/cursor-detection.js");
+
+    for (const alias of aliases) {
+      mockFiles.clear();
+      mockFiles.set(
+        "/tmp/config/opencode.json",
+        JSON.stringify({
+          plugin: [alias],
+        }),
+      );
+
+      const result = await inspectCursorOpenCodeIntegration();
+
+      expect(result.pluginEnabled, alias).toBe(true);
+      expect(result.providerConfigured, alias).toBe(false);
+      expect(result.matchedPaths, alias).toEqual(["/tmp/config/opencode.json"]);
+    }
   });
 
   it("detects legacy cursor runtime ids in provider config without treating them as plugins", async () => {

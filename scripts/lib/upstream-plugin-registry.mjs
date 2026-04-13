@@ -50,7 +50,11 @@ async function fetchJson(url) {
 }
 
 function buildNpmPackageUrl(packageName, version) {
-  return `https://www.npmjs.com/package/${encodeURIComponent(packageName)}/v/${encodeURIComponent(version)}`;
+  const encodedPackageName = packageName
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `https://www.npmjs.com/package/${encodedPackageName}/v/${encodeURIComponent(version)}`;
 }
 
 export function normalizeLatestPublishedPluginVersion(spec, packument) {

@@ -5,7 +5,7 @@ This directory stores committed local copies of the published npm packages track
 Tracked packages:
 
 - `opencode-antigravity-auth`
-- `opencode-cursor-oauth`
+- `@playwo/opencode-cursor-oauth` (tracked internally under `references/upstream-plugins/opencode-cursor-oauth/`)
 - `opencode-qwencode-auth`
 
 Refresh everything with:

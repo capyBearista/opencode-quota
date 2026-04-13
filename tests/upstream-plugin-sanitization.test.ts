@@ -23,12 +23,20 @@ async function writeAntigravityConstants(pluginRoot: string, clientId: string, c
 
 async function writeCursorSnapshot(
   pluginRoot: string,
-  params: { modelsSource: string; proxySource: string },
+  params: { modelsSource: string; proxySource: string; packageName?: string },
 ) {
   const distDir = path.join(pluginRoot, "dist");
   await mkdir(distDir, { recursive: true });
   await writeFile(path.join(distDir, "models.js"), params.modelsSource, "utf8");
   await writeFile(path.join(distDir, "proxy.js"), params.proxySource, "utf8");
+
+  if (params.packageName) {
+    await writeFile(
+      path.join(pluginRoot, "package.json"),
+      JSON.stringify({ name: params.packageName }, null, 2),
+      "utf8",
+    );
+  }
 }
 
 const UNSAFE_CURSOR_MODELS_SOURCE = `let cachedModels = null;
@@ -202,6 +210,26 @@ describe("upstream-plugin-sanitization", () => {
     expect(proxySource).toContain("messages: normalizedMessages");
     expect(proxySource).not.toContain('const firstUserMsg = messages.find((m) => m.role === "user");');
     expect(proxySource).not.toContain("firstUserText.slice(0, 200)");
+  });
+
+  it("sanitizes the tracked Cursor snapshot even when the published package name is scoped", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "opencode-quota-sanitize-"));
+    tempRoots.push(tempRoot);
+
+    await writeCursorSnapshot(tempRoot, {
+      modelsSource: UNSAFE_CURSOR_MODELS_SOURCE,
+      packageName: "@playwo/opencode-cursor-oauth",
+      proxySource: UNSAFE_CURSOR_PROXY_SOURCE,
+    });
+
+    await sanitizeUpstreamPluginSnapshot("opencode-cursor-oauth", tempRoot);
+
+    await expect(readFile(path.join(tempRoot, "dist", "models.js"), "utf8")).resolves.toContain(
+      "if (discovered && discovered.length > 0) {",
+    );
+    await expect(readFile(path.join(tempRoot, "dist", "proxy.js"), "utf8")).resolves.toContain(
+      "messages: normalizedMessages",
+    );
   });
 
   it("leaves already-safe Cursor OAuth snapshot guards unchanged", async () => {

@@ -117,12 +117,12 @@ For behavior details and troubleshooting, see [Anthropic notes](#anthropic-notes
 <details>
 <summary><strong>Quick setup: Cursor</strong></summary>
 
-Cursor quota support requires the `opencode-cursor-oauth` [plugin](https://github.com/ephraimduncan/opencode-cursor):
+Cursor quota support requires the `@playwo/opencode-cursor-oauth` [plugin](https://github.com/PoolPirate/opencode-cursor):
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-cursor-oauth", "@slkiser/opencode-quota"],
+  "plugin": ["@playwo/opencode-cursor-oauth", "@slkiser/opencode-quota"],
   "provider": {
     "cursor": {
       "name": "Cursor"
@@ -289,7 +289,7 @@ Example `copilot-quota-token.json`:
 <details>
 <summary><strong>Cursor</strong></summary>
 
-See [Cursor quick setup](#cursor-quick-setup) for companion-plugin OAuth auth. Quota and token reporting stays local to OpenCode history and local pricing data.
+See [Cursor quick setup](#cursor-quick-setup) for companion-plugin OAuth auth. The canonical companion package is `@playwo/opencode-cursor-oauth`; older plugin names such as `opencode-cursor-oauth`, `opencode-cursor`, and `cursor-acp` are still detected as compatibility aliases. Quota and token reporting stays local to OpenCode history and local pricing data.
 
 - Detects Cursor usage when the provider is `cursor` or the stored/current model id is `cursor/*`.
 - `/tokens_*` maps Cursor API-pool models to official pricing and uses bundled static pricing for `auto` and `composer*`.

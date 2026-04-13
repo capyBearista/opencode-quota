@@ -12,7 +12,19 @@ const CURSOR_PROXY_PATH = new URL(
   import.meta.url,
 );
 
+const CURSOR_PACKAGE_PATH = new URL(
+  "../references/upstream-plugins/opencode-cursor-oauth/package.json",
+  import.meta.url,
+);
+
 describe("synced Cursor OAuth reference guards", () => {
+  it("keeps the internal reference path stable while the published package metadata is canonical", () => {
+    const pkg = JSON.parse(readFileSync(CURSOR_PACKAGE_PATH, "utf8"));
+
+    expect(pkg.name).toBe("@playwo/opencode-cursor-oauth");
+    expect(pkg.repository?.url).toContain("PoolPirate/opencode-cursor");
+  });
+
   it("does not memoize fallback models after discovery failure", () => {
     const source = readFileSync(CURSOR_MODELS_PATH, "utf8");
 

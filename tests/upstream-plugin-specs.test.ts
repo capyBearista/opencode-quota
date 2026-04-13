@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { CURSOR_CANONICAL_PLUGIN_PACKAGE } from "../src/lib/cursor-detection.js";
 import {
   getUpstreamPluginIssueTitle,
   getUpstreamPluginSpec,
@@ -28,12 +29,18 @@ describe("upstream-plugin-specs", () => {
     }
   });
 
-  it("keeps the cursor plugin id mapped to the published repository slug", () => {
+  it("keeps the cursor internal plugin id stable while pointing at the canonical package and repo", () => {
     expect(getUpstreamPluginSpec("opencode-cursor-oauth")).toMatchObject({
-      packageName: "opencode-cursor-oauth",
+      packageName: "@playwo/opencode-cursor-oauth",
       pluginId: "opencode-cursor-oauth",
-      repo: "ephraimduncan/opencode-cursor",
+      referenceDir: `${UPSTREAM_PLUGIN_REFERENCE_ROOT}/opencode-cursor-oauth`,
+      repo: "PoolPirate/opencode-cursor",
     });
   });
-});
 
+  it("keeps the runtime Cursor package name aligned with the upstream spec", () => {
+    expect(getUpstreamPluginSpec("opencode-cursor-oauth")?.packageName).toBe(
+      CURSOR_CANONICAL_PLUGIN_PACKAGE,
+    );
+  });
+});

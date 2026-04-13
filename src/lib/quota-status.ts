@@ -52,7 +52,11 @@ import {
 import { aggregateUsage } from "./quota-stats.js";
 import { fmtUsdAmount, renderCommandHeading } from "./format-utils.js";
 import { totalTokenBuckets } from "./token-buckets.js";
-import { inspectCursorAuthPresence, inspectCursorOpenCodeIntegration } from "./cursor-detection.js";
+import {
+  CURSOR_CANONICAL_PLUGIN_PACKAGE,
+  inspectCursorAuthPresence,
+  inspectCursorOpenCodeIntegration,
+} from "./cursor-detection.js";
 import { getCurrentCursorUsageSummary } from "./cursor-usage.js";
 import { sanitizeDisplayText } from "./display-sanitize.js";
 import { getCursorPlanDisplayName, getEffectiveCursorIncludedApiUsd } from "./cursor-pricing.js";
@@ -539,6 +543,7 @@ export async function buildQuotaStatusReport(params: {
     lines.push(`- auth_error: ${cursorAuth.error}`);
   }
   lines.push(`- plugin_enabled: ${cursorIntegration.pluginEnabled ? "true" : "false"}`);
+  lines.push(`- canonical_plugin_package: ${CURSOR_CANONICAL_PLUGIN_PACKAGE}`);
   lines.push(`- provider_configured: ${cursorIntegration.providerConfigured ? "true" : "false"}`);
   lines.push(`- config_matches: ${joinOrNone(cursorIntegration.matchedPaths)}`);
   lines.push(`- config_checked_paths: ${joinOrNone(cursorIntegration.checkedPaths)}`);

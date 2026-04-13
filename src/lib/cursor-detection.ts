@@ -27,6 +27,21 @@ export interface CursorOpenCodeIntegration {
   checkedPaths: string[];
 }
 
+export const CURSOR_CANONICAL_PLUGIN_PACKAGE = "@playwo/opencode-cursor-oauth";
+const CURSOR_LEGACY_PLUGIN_PACKAGES = ["opencode-cursor", "opencode-cursor-oauth"];
+const CURSOR_COMPAT_PLUGIN_PACKAGES = new Set([
+  CURSOR_CANONICAL_PLUGIN_PACKAGE,
+  ...CURSOR_LEGACY_PLUGIN_PACKAGES,
+  CURSOR_LEGACY_PROVIDER_ID,
+  "open-cursor",
+  "@rama_nigg/open-cursor",
+]);
+const CURSOR_COMPAT_PLUGIN_SUFFIXES = [
+  `/${CURSOR_CANONICAL_PLUGIN_PACKAGE}`,
+  ...CURSOR_LEGACY_PLUGIN_PACKAGES.map((pkg) => `/${pkg}`),
+  "/open-cursor",
+];
+
 function dedupe(list: string[]): string[] {
   return [...new Set(list.filter(Boolean))];
 }
@@ -142,14 +157,8 @@ function pluginIncludesCursor(value: unknown): boolean {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return (
-    normalized === "opencode-cursor-oauth" ||
-    normalized === "opencode-cursor" ||
-    normalized === CURSOR_LEGACY_PROVIDER_ID ||
-    normalized === "open-cursor" ||
-    normalized === "@rama_nigg/open-cursor" ||
-    normalized.endsWith("/opencode-cursor-oauth") ||
-    normalized.endsWith("/opencode-cursor") ||
-    normalized.endsWith("/open-cursor")
+    CURSOR_COMPAT_PLUGIN_PACKAGES.has(normalized) ||
+    CURSOR_COMPAT_PLUGIN_SUFFIXES.some((suffix) => normalized.endsWith(suffix))
   );
 }
 

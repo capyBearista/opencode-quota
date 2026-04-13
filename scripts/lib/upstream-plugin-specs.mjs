@@ -9,8 +9,8 @@ const RAW_UPSTREAM_PLUGIN_SPECS = [
   },
   {
     pluginId: "opencode-cursor-oauth",
-    packageName: "opencode-cursor-oauth",
-    repoOwner: "ephraimduncan",
+    packageName: "@playwo/opencode-cursor-oauth",
+    repoOwner: "PoolPirate",
     repoName: "opencode-cursor",
   },
   {

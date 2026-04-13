@@ -1,4 +1,5 @@
 import { readUpstreamPluginLock } from "./lib/upstream-plugin-lock.mjs";
+import { isTrackedUpstreamPluginInSync } from "./lib/upstream-plugin-identity.mjs";
 import { planUpstreamPluginIssueAction } from "./lib/upstream-plugin-issues.mjs";
 import { fetchLatestPublishedPluginVersion } from "./lib/upstream-plugin-registry.mjs";
 import { UPSTREAM_PLUGIN_SPECS } from "./lib/upstream-plugin-specs.mjs";
@@ -134,7 +135,7 @@ async function main() {
   for (const spec of UPSTREAM_PLUGIN_SPECS) {
     const tracked = getTrackedEntry(lock, spec.pluginId);
     const latest = latestByPluginId.get(spec.pluginId);
-    const status = tracked.version === latest.version ? "up-to-date" : "update available";
+    const status = isTrackedUpstreamPluginInSync(tracked, latest) ? "up-to-date" : "update available";
     console.log(`${spec.pluginId}: tracked ${tracked.version}, latest ${latest.version} (${status})`);
   }
 

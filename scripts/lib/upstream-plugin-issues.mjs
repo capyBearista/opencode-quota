@@ -1,3 +1,4 @@
+import { isTrackedUpstreamPluginInSync } from "./upstream-plugin-identity.mjs";
 import { getUpstreamPluginIssueTitle } from "./upstream-plugin-specs.mjs";
 
 export const UPSTREAM_PLUGIN_ISSUE_STATE = Object.freeze({
@@ -33,7 +34,7 @@ function buildDuplicateIssueComment({ canonicalIssueNumber, issueState, latestVe
 }
 
 function getDesiredIssueState(tracked, latest) {
-  return tracked.version === latest.version
+  return isTrackedUpstreamPluginInSync(tracked, latest)
     ? UPSTREAM_PLUGIN_ISSUE_STATE.SYNCED_PENDING_REVIEW
     : UPSTREAM_PLUGIN_ISSUE_STATE.UPDATE_AVAILABLE;
 }

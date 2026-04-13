@@ -8,7 +8,7 @@
 import type { Plugin } from "@opencode-ai/plugin";
 /**
  * OpenCode plugin that provides Cursor authentication and model access.
- * Register in opencode.json: { "plugin": ["opencode-cursor-oauth"] }
+ * Register in opencode.json: { "plugin": ["@playwo/opencode-cursor-oauth"] }
  */
 export declare const CursorAuthPlugin: Plugin;
 export default CursorAuthPlugin;

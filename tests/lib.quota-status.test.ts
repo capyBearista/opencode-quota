@@ -245,6 +245,7 @@ vi.mock("../src/lib/zai.js", () => ({
 }));
 
 vi.mock("../src/lib/cursor-detection.js", () => ({
+  CURSOR_CANONICAL_PLUGIN_PACKAGE: "@playwo/opencode-cursor-oauth",
   inspectCursorAuthPresence: vi.fn(async () => ({
     state: "present",
     selectedPath: "/tmp/auth.json",
@@ -496,6 +497,7 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("- included_api_usd: $20.00");
     expect(report).toContain("- auth_state: present");
     expect(report).toContain("- plugin_enabled: true");
+    expect(report).toContain("- canonical_plugin_package: @playwo/opencode-cursor-oauth");
     expect(report).toContain("- provider_configured: true");
     expect(report).toContain("- cycle_source: calendar_month");
     expect(report).toContain("- api_usage: $3.50 across 2 messages");

@@ -1,5 +1,5 @@
 {
-  "name": "opencode-cursor-oauth",
+  "name": "@playwo/opencode-cursor-oauth",
   "version": "0.0.9",
   "description": "OpenCode plugin that connects Cursor's API to OpenCode via OAuth, model discovery, and a local OpenAI-compatible proxy.",
   "license": "MIT",
@@ -24,11 +24,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ephraimduncan/opencode-cursor.git"
+    "url": "git+https://github.com/PoolPirate/opencode-cursor.git"
   },
-  "homepage": "https://github.com/ephraimduncan/opencode-cursor#readme",
+  "homepage": "https://github.com/PoolPirate/opencode-cursor#readme",
   "bugs": {
-    "url": "https://github.com/ephraimduncan/opencode-cursor/issues"
+    "url": "https://github.com/PoolPirate/opencode-cursor/issues"
   },
   "keywords": [
     "opencode",
