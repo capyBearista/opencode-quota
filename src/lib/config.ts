@@ -30,6 +30,10 @@ export interface LoadConfigMeta {
   paths: string[];
 }
 
+export interface LoadConfigOptions {
+  cwd?: string;
+}
+
 export function createLoadConfigMeta(): LoadConfigMeta {
   return { source: "defaults", paths: [] };
 }
@@ -89,16 +93,21 @@ function dedupe<T>(list: T[]): T[] {
 /**
  * Load plugin configuration from OpenCode config
  *
- * @param client - OpenCode SDK client
+ * @param client - Optional OpenCode SDK client fallback
  * @returns Merged configuration with defaults
  */
 export async function loadConfig(
-  client: {
-    config: {
-      get: () => Promise<{ data?: { experimental?: { quotaToast?: Partial<QuotaToastConfig> } } }>;
-    };
-  },
+  client:
+    | {
+        config: {
+          get: () => Promise<{
+            data?: { experimental?: { quotaToast?: Partial<QuotaToastConfig> } };
+          }>;
+        };
+      }
+    | undefined,
   meta?: LoadConfigMeta,
+  options?: LoadConfigOptions,
 ): Promise<QuotaToastConfig> {
   function normalize(
     quotaToastConfig: Partial<QuotaToastConfig> | undefined | null,
@@ -269,7 +278,7 @@ export async function loadConfig(
     config: QuotaToastConfig | null;
     usedPaths: string[];
   }> {
-    const cwd = process.cwd();
+    const cwd = options?.cwd ?? process.cwd();
     const { configDirs } = getOpencodeRuntimeDirCandidates();
     const globalConfig = await loadQuotaToastFromLocations(configDirs);
     const localConfig = await loadQuotaToastFromLocations([cwd]);
@@ -309,24 +318,26 @@ export async function loadConfig(
     return fileConfig.config;
   }
 
-  try {
-    const response = await client.config.get();
+  if (client) {
+    try {
+      const response = await client.config.get();
 
-    // OpenCode config schema is strict; plugin-specific config must live under
-    // experimental.* to avoid "unrecognized key" validation errors.
-    const quotaToastConfig = (response.data as any)?.experimental?.quotaToast as
-      | Partial<QuotaToastConfig>
-      | undefined;
+      // OpenCode config schema is strict; plugin-specific config must live under
+      // experimental.* to avoid "unrecognized key" validation errors.
+      const quotaToastConfig = (response.data as any)?.experimental?.quotaToast as
+        | Partial<QuotaToastConfig>
+        | undefined;
 
-    if (quotaToastConfig && typeof quotaToastConfig === "object") {
-      if (meta) {
-        meta.source = "sdk";
-        meta.paths = ["client.config.get"];
+      if (quotaToastConfig && typeof quotaToastConfig === "object") {
+        if (meta) {
+          meta.source = "sdk";
+          meta.paths = ["client.config.get"];
+        }
+        return normalize(quotaToastConfig);
       }
-      return normalize(quotaToastConfig);
+    } catch {
+      // ignore; fall back to defaults below
     }
-  } catch {
-    // ignore; fall back to defaults below
   }
 
   if (meta) {

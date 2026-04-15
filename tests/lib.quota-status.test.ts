@@ -419,6 +419,14 @@ describe("buildQuotaStatusReport", () => {
     const report = await buildQuotaStatusReport({
       configSource: "test",
       configPaths: [],
+      tuiDiagnostics: {
+        configured: true,
+        selectedPath: "/tmp/project/tui.jsonc",
+        presentPaths: ["/tmp/config/tui.json", "/tmp/project/tui.jsonc"],
+        candidatePaths: ["/tmp/config/tui.json", "/tmp/config/tui.jsonc", "/tmp/project/tui.json", "/tmp/project/tui.jsonc"],
+        quotaPluginConfigured: true,
+        quotaPluginConfigPaths: ["/tmp/project/tui.jsonc"],
+      },
       enabledProviders: ["copilot"],
       anthropicBinaryPath: "/opt/claude/bin/claude",
       alibabaCodingPlanTier: "lite",
@@ -441,6 +449,15 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain(
       "- opencode_dirs: data=/tmp/data config=/tmp/config cache=/tmp/cache state=/tmp/state",
     );
+    expect(report).toContain("tui:");
+    expect(report).toContain("- config_configured: true");
+    expect(report).toContain("- selected_config_path: /tmp/project/tui.jsonc");
+    expect(report).toContain("- present_config_paths: /tmp/config/tui.json | /tmp/project/tui.jsonc");
+    expect(report).toContain(
+      "- candidate_config_paths: /tmp/config/tui.json | /tmp/config/tui.jsonc | /tmp/project/tui.json | /tmp/project/tui.jsonc",
+    );
+    expect(report).toContain("- quota_plugin_configured: true");
+    expect(report).toContain("- quota_plugin_paths: /tmp/project/tui.jsonc");
     expect(report).toContain(
       "- auth.json: preferred=/tmp/auth.json present=(none) candidates=/tmp/auth.json",
     );

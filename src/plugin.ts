@@ -14,14 +14,6 @@ import { getOrFetchWithCacheControl } from "./lib/cache.js";
 import { formatQuotaRows } from "./lib/format.js";
 import { formatQuotaCommand } from "./lib/quota-command-format.js";
 import { getProviders } from "./providers/registry.js";
-import type {
-  QuotaProvider,
-  QuotaProviderContext,
-  QuotaProviderResult,
-  QuotaToastEntry,
-  QuotaToastError,
-  SessionTokensData,
-} from "./lib/entries.js";
 import { tool } from "@opencode-ai/plugin";
 import {
   aggregateUsage,
@@ -29,9 +21,9 @@ import {
   SessionNotFoundError,
   type SessionTreeNode,
 } from "./lib/quota-stats.js";
-import { fetchSessionTokensForDisplay } from "./lib/session-tokens.js";
 import { formatQuotaStatsReport } from "./lib/quota-stats-format.js";
 import { buildQuotaStatusReport, type SessionTokenError } from "./lib/quota-status.js";
+import { inspectTuiConfig } from "./lib/tui-config-diagnostics.js";
 import {
   getPricingSnapshotMeta,
   getPricingSnapshotSource,
@@ -43,7 +35,6 @@ import {
   type PricingRefreshResult,
 } from "./lib/modelsdev-pricing.js";
 import { refreshGoogleTokensForAllAccounts } from "./lib/google.js";
-import { getQuotaProviderDisplayLabel } from "./lib/provider-metadata.js";
 import {
   DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
   isAlibabaModelId,
@@ -63,7 +54,15 @@ import {
 import { handled } from "./lib/command-handled.js";
 import { renderCommandHeading } from "./lib/format-utils.js";
 import { sanitizeDisplayText } from "./lib/display-sanitize.js";
-import { getAnthropicNoDataMessage } from "./providers/anthropic.js";
+import {
+  collectQuotaRenderData,
+  matchesQuotaProviderCurrentSelection,
+  resolveQuotaRenderSelection,
+  type ProviderFetchCacheStore,
+  type QuotaRenderData as QuotaCommandRenderData,
+  type QuotaRequestContext as QuotaCommandRequestContext,
+  type SessionModelMeta,
+} from "./lib/quota-render-data.js";
 
 // =============================================================================
 // Types
@@ -159,26 +158,6 @@ interface PluginConfigInput {
   agent?: Record<string, unknown>;
   default_agent?: string;
 }
-
-type SessionModelMeta = {
-  modelID?: string;
-  providerID?: string;
-};
-
-type QuotaCommandSelection = {
-  isAutoMode: boolean;
-  providers: QuotaProvider[];
-  filtered: QuotaProvider[];
-  ctx: QuotaProviderContext;
-  currentModel?: string;
-  currentProviderID?: string;
-  filteringByCurrentSelection: boolean;
-};
-
-type QuotaCommandRequestContext = {
-  sessionID?: string;
-  sessionMeta?: SessionModelMeta;
-};
 
 // =============================================================================
 // Token Report Command Specification
@@ -315,12 +294,6 @@ function isTokenReportCommand(cmd: string): cmd is TokenReportCommandId {
 
 const LIVE_LOCAL_USAGE_PROVIDER_IDS = new Set(["qwen-code", "alibaba-coding-plan", "cursor"]);
 
-type QuotaCommandRenderData = {
-  entries: QuotaToastEntry[];
-  errors: QuotaToastError[];
-  sessionTokens?: SessionTokensData;
-};
-
 type QuotaCommandCacheEntry = {
   data?: QuotaCommandRenderData;
   timestamp: number;
@@ -375,13 +348,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   // Track last session token error for /quota_status diagnostics
   let lastSessionTokenError: SessionTokenError | undefined;
 
-  type ProviderFetchCacheEntry = {
-    timestamp: number;
-    result?: QuotaProviderResult;
-    inFlight?: Promise<QuotaProviderResult>;
-  };
-
-  const providerFetchCache = new Map<string, ProviderFetchCacheEntry>();
+  const providerFetchCache: ProviderFetchCacheStore = new Map();
 
   function getQuotaCommandCache(): QuotaCommandCacheStore {
     const existing = (globalThis as any).__opencodeQuotaCommandCache as unknown;
@@ -472,136 +439,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     if (title.startsWith("error") || title.includes("failed")) return false;
 
     return true;
-  }
-
-  function makeProviderFetchCacheKey(providerId: string, ctx: QuotaProviderContext): string {
-    const style = ctx.config.toastStyle ?? "classic";
-    const googleModels = ctx.config.googleModels.join(",");
-    const alibabaCodingPlanTier = ctx.config.alibabaCodingPlanTier;
-    const cursorPlan = ctx.config.cursorPlan;
-    const cursorIncludedApiUsd = ctx.config.cursorIncludedApiUsd ?? "";
-    const cursorBillingCycleStartDay = ctx.config.cursorBillingCycleStartDay ?? "";
-    const onlyCurrentModel = ctx.config.onlyCurrentModel ? "yes" : "no";
-    const currentModel = ctx.config.currentModel ?? "";
-    const currentProviderID = ctx.config.currentProviderID ?? "";
-    const anthropicBinaryPath = ctx.config.anthropicBinaryPath ?? "";
-    return `${providerId}|style=${style}|anthropicBinaryPath=${anthropicBinaryPath}|googleModels=${googleModels}|alibabaTier=${alibabaCodingPlanTier}|cursorPlan=${cursorPlan}|cursorIncludedApiUsd=${cursorIncludedApiUsd}|cursorBillingCycleStartDay=${cursorBillingCycleStartDay}|onlyCurrentModel=${onlyCurrentModel}|currentModel=${currentModel}|currentProviderID=${currentProviderID}`;
-  }
-
-  async function fetchProviderWithCache(params: {
-    provider: QuotaProvider;
-    ctx: QuotaProviderContext;
-    ttlMs: number;
-  }): Promise<QuotaProviderResult> {
-    const { provider, ctx, ttlMs } = params;
-
-    // Live local-usage providers should update per completion for accurate local reports.
-    if (LIVE_LOCAL_USAGE_PROVIDER_IDS.has(provider.id)) {
-      return await provider.fetch(ctx);
-    }
-
-    const cacheKey = makeProviderFetchCacheKey(provider.id, ctx);
-    const now = Date.now();
-    const existing = providerFetchCache.get(cacheKey);
-
-    if (
-      existing?.result &&
-      existing.timestamp > 0 &&
-      ttlMs > 0 &&
-      now - existing.timestamp < ttlMs
-    ) {
-      return existing.result;
-    }
-
-    if (existing?.inFlight) {
-      return existing.inFlight;
-    }
-
-    const promise = (async () => {
-      try {
-        const result = await provider.fetch(ctx);
-        if (result.attempted) {
-          providerFetchCache.set(cacheKey, { timestamp: Date.now(), result });
-        } else {
-          providerFetchCache.delete(cacheKey);
-        }
-        return result;
-      } catch (err) {
-        providerFetchCache.delete(cacheKey);
-        throw err;
-      }
-    })();
-
-    providerFetchCache.set(cacheKey, {
-      timestamp: existing?.timestamp ?? 0,
-      result: existing?.result,
-      inFlight: promise,
-    });
-
-    return promise;
-  }
-
-  function makeProviderFetchFailure(provider: QuotaProvider): QuotaProviderResult {
-    return {
-      attempted: true,
-      entries: [],
-      errors: [
-        {
-          label: getQuotaProviderDisplayLabel(provider.id),
-          message: "Failed to read quota data",
-        },
-      ],
-    };
-  }
-
-  async function fetchProviderResults(params: {
-    providers: QuotaProvider[];
-    ctx: QuotaProviderContext;
-    ttlMs: number;
-  }): Promise<QuotaProviderResult[]> {
-    const settled = await Promise.allSettled(
-      params.providers.map((provider) =>
-        fetchProviderWithCache({
-          provider,
-          ctx: params.ctx,
-          ttlMs: params.ttlMs,
-        }),
-      ),
-    );
-
-    return settled.map((result, index) =>
-      result.status === "fulfilled"
-        ? result.value
-        : makeProviderFetchFailure(params.providers[index]!),
-    );
-  }
-
-  function getExplicitNoDataMessage(provider: QuotaProvider): string {
-    if (provider.id === "cursor") {
-      return "No local usage yet";
-    }
-    if (provider.id === "anthropic") {
-      return getAnthropicNoDataMessage();
-    }
-    return "Not configured";
-  }
-
-  function shouldSurfaceNoDataMessage(params: {
-    provider: QuotaProvider;
-    result: QuotaProviderResult;
-    isAutoMode: boolean;
-    activeProviderCount: number;
-  }): boolean {
-    const { provider, result, isAutoMode, activeProviderCount } = params;
-    if (result.attempted || result.entries.length > 0 || result.errors.length > 0) {
-      return false;
-    }
-
-    if (!isAutoMode) {
-      return true;
-    }
-
-    return activeProviderCount === 1 && (provider.id === "anthropic" || provider.id === "cursor");
   }
 
   function isProviderEnabled(providerId: string): boolean {
@@ -798,20 +635,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     }
   }
 
-  function matchesProviderCurrentSelection(params: {
-    provider: QuotaProvider;
-    currentModel?: string;
-    currentProviderID?: string;
-  }): boolean {
-    if (params.provider.id === "cursor" && isCursorProviderId(params.currentProviderID)) {
-      return true;
-    }
-    if (!params.currentModel) return false;
-    return params.provider.matchesCurrentModel
-      ? params.provider.matchesCurrentModel(params.currentModel)
-      : true;
-  }
-
   function formatDebugInfo(params: {
     trigger: string;
     reason: string;
@@ -843,63 +666,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     ].join("\n");
   }
 
-  async function resolveQuotaCommandSelection(
-    params: QuotaCommandRequestContext = {},
-  ): Promise<QuotaCommandSelection | null> {
-    if (!configLoaded) await refreshConfig();
-    if (!config.enabled) return null;
-
-    const allProviders = getProviders();
-    const isAutoMode = config.enabledProviders === "auto";
-    const providers = isAutoMode
-      ? allProviders
-      : allProviders.filter((p) => config.enabledProviders.includes(p.id));
-    if (!isAutoMode && providers.length === 0) return null;
-
-    let currentModel: string | undefined;
-    let currentProviderID: string | undefined;
-    if (config.onlyCurrentModel && params.sessionID) {
-      const currentSession = params.sessionMeta ?? (await getSessionModelMeta(params.sessionID));
-      currentModel = currentSession.modelID;
-      currentProviderID = currentSession.providerID;
-    }
-
-    const ctx: QuotaProviderContext = {
-      client: typedClient,
-      config: {
-        googleModels: config.googleModels,
-        anthropicBinaryPath: config.anthropicBinaryPath,
-        alibabaCodingPlanTier: config.alibabaCodingPlanTier,
-        cursorPlan: config.cursorPlan,
-        cursorIncludedApiUsd: config.cursorIncludedApiUsd,
-        cursorBillingCycleStartDay: config.cursorBillingCycleStartDay,
-        // Always format /quota in grouped mode for a more dashboard-like look.
-        toastStyle: "grouped" as const,
-        onlyCurrentModel: config.onlyCurrentModel,
-        currentModel,
-        currentProviderID,
-      },
-    };
-
-    const filteringByCurrentSelection =
-      config.onlyCurrentModel && Boolean(currentModel || isCursorProviderId(currentProviderID));
-    const filtered = filteringByCurrentSelection
-      ? providers.filter((p) =>
-          matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID }),
-        )
-      : providers;
-
-    return {
-      isAutoMode,
-      providers,
-      filtered,
-      ctx,
-      currentModel,
-      currentProviderID,
-      filteringByCurrentSelection,
-    };
-  }
-
   function describeQuotaCommandCurrentSelection(params: {
     currentModel?: string;
     currentProviderID?: string;
@@ -916,7 +682,12 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   async function buildQuotaCommandUnavailableMessage(
     params: QuotaCommandRequestContext = {},
   ): Promise<string> {
-    const selection = await resolveQuotaCommandSelection(params);
+    const selection = await resolveQuotaRenderSelection({
+      client: typedClient,
+      config,
+      request: params,
+      style: "grouped",
+    });
     if (!selection) {
       return "Quota unavailable\n\nNo enabled quota providers are configured.\n\nRun /quota_status for diagnostics.";
     }
@@ -974,59 +745,33 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         : null;
     }
 
-    const allProviders = getProviders();
-    const isAutoMode = config.enabledProviders === "auto";
-    const enabledProviderIds = isAutoMode ? [] : config.enabledProviders;
-
-    // When enabledProviders is "auto", we'll filter by availability below.
-    // When explicit, filter to just the listed providers.
-    const providers = isAutoMode
-      ? allProviders
-      : allProviders.filter((p) => enabledProviderIds.includes(p.id));
-
-    // Only bail on empty if user explicitly configured an empty list.
-    if (!isAutoMode && providers.length === 0) {
+    if (config.enabledProviders !== "auto" && config.enabledProviders.length === 0) {
       return config.debug
         ? formatDebugInfo({ trigger, reason: "enabledProviders empty", enabledProviders: [] })
         : null;
     }
 
-    let currentModel: string | undefined;
-    let currentProviderID: string | undefined;
-    if (config.onlyCurrentModel) {
-      const currentSession = await getSessionModelMeta(sessionID);
-      currentModel = currentSession.modelID;
-      currentProviderID = currentSession.providerID;
+    const quotaRequestContext: QuotaCommandRequestContext = {
+      sessionID,
+      sessionMeta:
+        config.onlyCurrentModel && sessionID ? await getSessionModelMeta(sessionID) : undefined,
+    };
+    const quotaResult = await collectQuotaRenderData({
+      client: typedClient,
+      config,
+      request: quotaRequestContext,
+      providerFetchCache,
+      surfaceExplicitProviderIssues: true,
+      style: config.toastStyle,
+    });
+    const { selection, availability, active, attemptedAny, hasExplicitProviderIssues, data } =
+      quotaResult;
+
+    if (config.showSessionTokens && sessionID) {
+      lastSessionTokenError = quotaResult.sessionTokenError;
     }
 
-    const ctx: QuotaProviderContext = {
-      client: typedClient,
-      config: {
-        googleModels: config.googleModels,
-        anthropicBinaryPath: config.anthropicBinaryPath,
-        alibabaCodingPlanTier: config.alibabaCodingPlanTier,
-        cursorPlan: config.cursorPlan,
-        cursorIncludedApiUsd: config.cursorIncludedApiUsd,
-        cursorBillingCycleStartDay: config.cursorBillingCycleStartDay,
-        toastStyle: config.toastStyle,
-        onlyCurrentModel: config.onlyCurrentModel,
-        currentModel,
-        currentProviderID,
-      },
-    };
-
-    const filtered =
-      config.onlyCurrentModel && (currentModel || isCursorProviderId(currentProviderID))
-        ? providers.filter((p) =>
-            matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID }),
-          )
-        : providers;
-
-    // availability checks are cheap, do them in parallel
-    const avail = await Promise.all(
-      filtered.map(async (p) => ({ p, ok: await p.isAvailable(ctx) })),
-    );
-    const active = avail.filter((x) => x.ok).map((x) => x.p);
+    const currentModel = selection?.currentModel;
 
     if (active.length === 0) {
       return config.debug
@@ -1035,115 +780,40 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             reason: "no enabled providers available",
             currentModel,
             enabledProviders: config.enabledProviders,
-            availability: avail.map((x) => ({ id: x.p.id, ok: x.ok })),
+            availability: availability.map((item) => ({
+              id: item.provider.id,
+              ok: item.ok,
+            })),
           })
         : null;
     }
 
-    const results = await fetchProviderResults({
-      providers: active,
-      ctx,
-      ttlMs: config.minIntervalMs,
-    });
-
-    const entries: QuotaToastEntry[] = results.flatMap((r) => r.entries);
-    const errors: QuotaToastError[] = results.flatMap((r) => r.errors);
-    const attemptedAny = results.some((r) => r.attempted);
-
-    let hasExplicitProviderIssues = false;
-
-    for (let i = 0; i < active.length; i++) {
-      const provider = active[i];
-      const result = results[i];
-      if (
-        shouldSurfaceNoDataMessage({
-          provider,
-          result,
-          isAutoMode,
-          activeProviderCount: active.length,
-        })
-      ) {
-        errors.push({
-          label: getQuotaProviderDisplayLabel(provider.id),
-          message: getExplicitNoDataMessage(provider),
-        });
-        if (!isAutoMode) {
-          hasExplicitProviderIssues = true;
-        }
-      }
-    }
-
-    // When enabledProviders is an explicit list, surface unavailable/skipped
-    // providers instead of silently omitting them.
-    if (!isAutoMode) {
-      // If a user explicitly enabled providers that are unavailable (or skipped due
-      // to model filtering), surface that instead of silently omitting them.
-      const filteredIds = new Set(filtered.map((p) => p.id));
-      const activeIds = new Set(active.map((p) => p.id));
-      const availById = new Map(avail.map((x) => [x.p.id, x.ok] as const));
-
-      for (const p of providers) {
-        if (activeIds.has(p.id)) continue;
-
-        if (!filteredIds.has(p.id)) {
-          const detail =
-            config.onlyCurrentModel && currentModel ? `current model: ${currentModel}` : "filtered";
-          errors.push({
-            label: getQuotaProviderDisplayLabel(p.id),
-            message: `Skipped (${detail})`,
-          });
-          hasExplicitProviderIssues = true;
-          continue;
-        }
-
-        const ok = availById.get(p.id);
-        if (ok === false) {
-          errors.push({
-            label: getQuotaProviderDisplayLabel(p.id),
-            message: "Unavailable (not detected)",
-          });
-          hasExplicitProviderIssues = true;
-        }
-      }
-    }
-
-    // Fetch session tokens if enabled and sessionID is available
-    let sessionTokens: SessionTokensData | undefined;
-    if (config.showSessionTokens && sessionID) {
-      const stResult = await fetchSessionTokensForDisplay({
-        enabled: config.showSessionTokens,
-        sessionID,
-      });
-      sessionTokens = stResult.sessionTokens;
-      // Update diagnostics state: clear on success (no error returned), set on failure
-      lastSessionTokenError = stResult.error;
-    }
-
-    if (entries.length > 0) {
+    if (data?.entries.length) {
       const formatted = formatQuotaRows({
         version: "1.0.0",
         layout: config.layout,
-        entries,
-        errors,
+        entries: data.entries,
+        errors: data.errors,
         style: config.toastStyle,
-        sessionTokens,
+        sessionTokens: data.sessionTokens,
       });
 
       if (!config.debug) return formatted;
 
-      const debugFooter = `\n\n[debug] src=${configMeta.source} providers=${config.enabledProviders === "auto" ? "(auto)" : config.enabledProviders.join(",") || "(none)"} avail=${avail
-        .map((x) => `${x.p.id}:${x.ok ? "ok" : "no"}`)
+      const debugFooter = `\n\n[debug] src=${configMeta.source} providers=${config.enabledProviders === "auto" ? "(auto)" : config.enabledProviders.join(",") || "(none)"} avail=${availability
+        .map((item) => `${item.provider.id}:${item.ok ? "ok" : "no"}`)
         .join(" ")}`;
 
       return formatted + debugFooter;
     }
 
+    const errors = data?.errors ?? [];
+
     // Show errors even without entries when:
     // 1. showOnBothFail is enabled and at least one provider attempted (existing behavior)
     // 2. OR we're in explicit mode and have "Not configured"/"Unavailable" errors (new behavior)
     if ((config.showOnBothFail && attemptedAny && errors.length > 0) || hasExplicitProviderIssues) {
-      // Format errors as individual lines
-      const errorLines = errors.map((e) => `${e.label}: ${e.message}`).join("\n");
+      const errorLines = errors.map((error) => `${error.label}: ${error.message}`).join("\n");
       if (!config.debug) return errorLines || "Quota unavailable";
       return (
         (errorLines || "Quota unavailable") +
@@ -1155,7 +825,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             : "all providers failed",
           currentModel,
           enabledProviders: config.enabledProviders,
-          availability: avail.map((x) => ({ id: x.p.id, ok: x.ok })),
+          availability: availability.map((item) => ({
+            id: item.provider.id,
+            ok: item.ok,
+          })),
         })
       );
     }
@@ -1166,7 +839,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           reason: "no entries",
           currentModel,
           enabledProviders: config.enabledProviders,
-          availability: avail.map((x) => ({ id: x.p.id, ok: x.ok })),
+          availability: availability.map((item) => ({
+            id: item.provider.id,
+            ok: item.ok,
+          })),
         })
       : null;
   }
@@ -1237,56 +913,20 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     trigger: string,
     params: QuotaCommandRequestContext = {},
   ): Promise<QuotaCommandRenderData | null> {
-    const selection = await resolveQuotaCommandSelection(params);
-    if (!selection) return null;
-
-    const { isAutoMode, ctx } = selection;
-    const avail = await Promise.all(
-      selection.filtered.map(async (p) => ({ p, ok: await p.isAvailable(ctx) })),
-    );
-    const active = avail.filter((x) => x.ok).map((x) => x.p);
-    if (active.length === 0) return null;
-
-    const results = await fetchProviderResults({
-      providers: active,
-      ctx,
-      ttlMs: config.minIntervalMs,
+    const quotaResult = await collectQuotaRenderData({
+      client: typedClient,
+      config,
+      request: params,
+      providerFetchCache,
+      surfaceExplicitProviderIssues: false,
+      style: "grouped",
     });
-    const entries = results.flatMap((r) => r.entries) as QuotaToastEntry[];
-    const errors = results.flatMap((r) => r.errors);
 
-    for (let i = 0; i < active.length; i++) {
-      const provider = active[i];
-      const result = results[i];
-      if (
-        shouldSurfaceNoDataMessage({
-          provider,
-          result,
-          isAutoMode,
-          activeProviderCount: active.length,
-        })
-      ) {
-        errors.push({
-          label: getQuotaProviderDisplayLabel(provider.id),
-          message: getExplicitNoDataMessage(provider),
-        });
-      }
-    }
-
-    // Fetch session tokens if enabled and sessionID is available
-    let sessionTokens: SessionTokensData | undefined;
     if (config.showSessionTokens && params.sessionID) {
-      const stResult = await fetchSessionTokensForDisplay({
-        enabled: config.showSessionTokens,
-        sessionID: params.sessionID,
-      });
-      sessionTokens = stResult.sessionTokens;
-      // Update diagnostics state: clear on success (no error returned), set on failure
-      lastSessionTokenError = stResult.error;
+      lastSessionTokenError = quotaResult.sessionTokenError;
     }
 
-    if (entries.length === 0 && errors.length === 0 && !sessionTokens) return null;
-    return { entries, errors, sessionTokens };
+    return quotaResult.data;
   }
 
   async function buildQuotaReport(params: {
@@ -1376,7 +1016,11 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           available: ok,
           matchesCurrentModel:
             currentModel || isCursorProviderId(currentProviderID)
-              ? matchesProviderCurrentSelection({ provider: p, currentModel, currentProviderID })
+              ? matchesQuotaProviderCurrentSelection({
+                  provider: p,
+                  currentModel,
+                  currentProviderID,
+                })
               : undefined,
         };
       }),
@@ -1386,7 +1030,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       ? await refreshGoogleTokensForAllAccounts({ skewMs: params.skewMs, force: params.force })
       : null;
 
+    const tuiDiagnostics = await inspectTuiConfig();
+
     return await buildQuotaStatusReport({
+      tuiDiagnostics,
       configSource: configMeta.source,
       configPaths: configMeta.paths,
       enabledProviders: config.enabledProviders,
@@ -1737,7 +1384,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       cfg.command["quota_status"] = {
         template: "/quota_status",
         description:
-          "Diagnostics for toast + pricing + local storage (includes unknown pricing report).",
+            "Diagnostics for toast + TUI + pricing + local storage (includes unknown pricing report).",
       };
       cfg.command["pricing_refresh"] = {
         template: "/pricing_refresh",
@@ -1810,7 +1457,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     tool: {
       quota_status: tool({
         description:
-          "Diagnostics for toast + pricing + local storage (includes unknown pricing report).",
+            "Diagnostics for toast + TUI + pricing + local storage (includes unknown pricing report).",
         args: {
           refreshGoogleTokens: tool.schema
             .boolean()

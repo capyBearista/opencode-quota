@@ -6,6 +6,10 @@
  * toasts or transcript output.
  */
 
+import type { QuotaRenderData } from "./quota-render-data.js";
+import type { QuotaToastEntry, QuotaToastError, SessionTokensData } from "./entries.js";
+import { isValueEntry } from "./entries.js";
+
 // Remove ANSI escape sequences and other control characters except newline/tab.
 // eslint-disable-next-line no-control-regex
 const DISPLAY_CONTROL_RE = /\x1B\[[0-9;]*[A-Za-z]|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
@@ -16,4 +20,60 @@ export function sanitizeDisplayText(text: string): string {
 
 export function sanitizeDisplaySnippet(text: string, maxLength: number): string {
   return sanitizeDisplayText(text).slice(0, maxLength);
+}
+
+export function sanitizeOptionalDisplayText(value?: string): string | undefined {
+  return typeof value === "string" ? sanitizeDisplayText(value) : undefined;
+}
+
+export function sanitizeQuotaToastEntry(entry: QuotaToastEntry): QuotaToastEntry {
+  if (isValueEntry(entry)) {
+    return {
+      ...entry,
+      name: sanitizeDisplayText(entry.name),
+      value: sanitizeDisplayText(entry.value),
+      group: sanitizeOptionalDisplayText(entry.group),
+      label: sanitizeOptionalDisplayText(entry.label),
+      right: sanitizeOptionalDisplayText(entry.right),
+      resetTimeIso: sanitizeOptionalDisplayText(entry.resetTimeIso),
+    };
+  }
+
+  return {
+    ...entry,
+    name: sanitizeDisplayText(entry.name),
+    group: sanitizeOptionalDisplayText(entry.group),
+    label: sanitizeOptionalDisplayText(entry.label),
+    right: sanitizeOptionalDisplayText(entry.right),
+    resetTimeIso: sanitizeOptionalDisplayText(entry.resetTimeIso),
+  };
+}
+
+export function sanitizeQuotaToastError(error: QuotaToastError): QuotaToastError {
+  return {
+    label: sanitizeDisplayText(error.label),
+    message: sanitizeDisplayText(error.message),
+  };
+}
+
+export function sanitizeSessionTokensData(
+  data?: SessionTokensData,
+): SessionTokensData | undefined {
+  if (!data) return undefined;
+
+  return {
+    ...data,
+    models: data.models.map((model) => ({
+      ...model,
+      modelID: sanitizeDisplayText(model.modelID),
+    })),
+  };
+}
+
+export function sanitizeQuotaRenderData(data: QuotaRenderData): QuotaRenderData {
+  return {
+    entries: data.entries.map(sanitizeQuotaToastEntry),
+    errors: data.errors.map(sanitizeQuotaToastError),
+    sessionTokens: sanitizeSessionTokensData(data.sessionTokens),
+  };
 }

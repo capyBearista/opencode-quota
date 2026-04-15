@@ -3,21 +3,33 @@
   "version": "2.17.0",
   "description": "OpenCode quota & tokens usage with zero context window pollution. Supports GitHub Copilot, OpenAI (Plus/Pro), Qwen Code, Chutes AI, Firmware AI, Google Antigravity, Z.ai coding plan and more.",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tui": {
+      "types": "./dist/tui.d.ts",
+      "default": "./dist/tui.tsx"
     }
   },
+  "oc-plugin": [
+    "server",
+    "tui"
+  ],
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && node scripts/copy-data.mjs",
+    "build": "tsc && node scripts/copy-data.mjs && node scripts/prepare-tui-dist.mjs",
     "pricing:refresh": "node scripts/refresh-modelsdev-pricing.mjs",
     "pricing:refresh:if-stale": "node scripts/refresh-modelsdev-pricing-if-stale.mjs",
     "upstream:check": "node scripts/check-upstream-plugin-updates.mjs",
@@ -53,7 +65,7 @@
   },
   "homepage": "https://github.com/slkiser/opencode-quota#readme",
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.1.14",
+    "@opencode-ai/plugin": "^1.4.3",
     "@types/node": "^22.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
@@ -63,14 +75,17 @@
     "zod": "4.1.8"
   },
   "dependencies": {
+    "@opentui/core": "^0.1.92",
+    "@opentui/solid": "^0.1.92",
     "opencode-antigravity-auth": "^1.2.8",
+    "solid-js": "^1.9.10",
     "xdg-basedir": "^5.1.0"
   },
   "overrides": {
     "zod": "4.1.8"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "^1.1.0"
+    "@opencode-ai/plugin": "^1.4.3"
   },
   "engines": {
     "node": ">=18.0.0"

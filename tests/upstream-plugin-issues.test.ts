@@ -46,12 +46,12 @@ describe("upstream-plugin-issues", () => {
     if (!cursorSpec) return;
 
     const cursorTracked = {
-      npmUrl: "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/0.0.9",
+      npmUrl: "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/0.4.3",
       packageName: "@playwo/opencode-cursor-oauth",
-      publishedAt: "2026-03-22T20:35:43.105Z",
+      publishedAt: "2026-04-08T14:04:58.057Z",
       referenceDir: "references/upstream-plugins/opencode-cursor-oauth",
       repo: "PoolPirate/opencode-cursor",
-      version: "0.0.9",
+      version: "0.4.3",
     };
 
     const body = buildUpstreamPluginIssueBody({
@@ -73,21 +73,21 @@ describe("upstream-plugin-issues", () => {
     if (!cursorSpec) return;
 
     const trackedCursor = {
-      npmUrl: "https://www.npmjs.com/package/opencode-cursor-oauth/v/0.0.9",
+      npmUrl: "https://www.npmjs.com/package/opencode-cursor-oauth/v/0.4.3",
       packageName: "opencode-cursor-oauth",
-      publishedAt: "2026-03-22T20:35:43.105Z",
+      publishedAt: "2026-04-08T14:04:58.057Z",
       referenceDir: "references/upstream-plugins/opencode-cursor-oauth",
       repo: "ephraimduncan/opencode-cursor",
-      version: "0.0.9",
+      version: "0.4.3",
     };
 
     const latestCursor = {
-      npmUrl: "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/0.0.9",
+      npmUrl: "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/0.4.3",
       packageName: "@playwo/opencode-cursor-oauth",
-      publishedAt: "2026-03-22T20:35:43.105Z",
+      publishedAt: "2026-04-08T14:04:58.057Z",
       referenceDir: "references/upstream-plugins/opencode-cursor-oauth",
       repo: "PoolPirate/opencode-cursor",
-      version: "0.0.9",
+      version: "0.4.3",
     };
 
     const plan = planUpstreamPluginIssueAction({

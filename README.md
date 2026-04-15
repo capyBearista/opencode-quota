@@ -6,9 +6,10 @@
 [![Node >=18](https://img.shields.io/badge/node-%3E%3D18-339933)](./package.json)
 
 
-`opencode-quota` gives you two things:
+`opencode-quota` gives you three things:
 
 - Automatic quota toasts after assistant responses
+- A TUI sidebar quota panel that reuses the same quota/session-token text pipeline
 - Manual `/quota`, `/pricing_refresh`, and `/tokens_*` commands for deeper local reporting with zero context window pollution
 
 **Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, MiniMax Coding Plan, Chutes AI, Firmware AI, Google Antigravity, Z.ai Coding Plan, NanoGPT, and OpenCode Go.
@@ -34,21 +35,33 @@
 
 ## Quick Start
 
-OpenCode `>= 1.2.0` is required. Add the plugin to your `opencode.json` or `opencode.jsonc`:
+OpenCode `>= 1.4.3` is required.
+
+Add the plugin to `opencode.json` or `opencode.jsonc`:
 
 ```jsonc
 {
+  "$schema": "https://opencode.ai/config.json",
   "plugin": ["@slkiser/opencode-quota"]
 }
 ```
 
-Then:
+If you also want the sidebar, add the same package to `tui.json` or `tui.jsonc` in the same folder:
 
-1. Restart or reload OpenCode.
-2. Run `/quota_status` to confirm provider detection.
-3. Run `/quota` or `/tokens_today`.
+```jsonc
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "plugin": ["@slkiser/opencode-quota"]
+}
+```
 
-That is enough for most installs. Providers are auto-detected from your existing OpenCode setup, and most providers work from your existing OpenCode auth. If a provider needs anything extra, use the setup table below.
+Keep `experimental.quotaToast` in `opencode.json(c)`. Use `tui.json(c)` only for TUI settings and TUI plugins.
+
+Then restart OpenCode, run `/quota_status`, run `/quota`, and open the session sidebar to confirm the `Quota` panel appears.
+
+That is enough for most installs. Providers are auto-detected from your existing OpenCode setup, and most providers work from your existing OpenCode auth. If you want both pop-up toasts and the sidebar, list the package in both files. If a provider needs anything extra, use the setup table below.
+
+`experimental.quotaToast.enableToast: false` disables pop-up toasts only. The sidebar panel still renders when the TUI plugin is installed and quota data is available.
 
 <details>
 <summary><strong>Example: Turn off auto-detection and choose providers</strong></summary>
@@ -221,7 +234,7 @@ Environment variables take precedence over the config file. Run `/quota_status` 
 | Command | What it shows |
 | --- | --- |
 | `/quota` | Manual grouped quota report with a local call timestamp |
-| `/quota_status` | Concise diagnostics for config, provider availability, account detection, and pricing snapshot health |
+| `/quota_status` | Concise diagnostics for config, TUI setup, provider availability, account detection, and pricing snapshot health |
 | `/pricing_refresh` | Pull the local runtime pricing snapshot from `models.dev` on demand |
 | `/tokens_today` | Tokens used today (calendar day) |
 | `/tokens_daily` | Tokens used in the last 24 hours |

@@ -335,6 +335,14 @@ function supportedProviderPricingRow(params: {
 export async function buildQuotaStatusReport(params: {
   configSource: string;
   configPaths: string[];
+  tuiDiagnostics?: {
+    configured: boolean;
+    selectedPath: string | null;
+    presentPaths: string[];
+    candidatePaths: string[];
+    quotaPluginConfigured: boolean;
+    quotaPluginConfigPaths: string[];
+  };
   enabledProviders: string[] | "auto";
   anthropicBinaryPath?: string;
   alibabaCodingPlanTier: "lite" | "pro";
@@ -391,6 +399,16 @@ export async function buildQuotaStatusReport(params: {
         ? "(no session available)"
         : "(unknown)";
   lines.push(`- currentModel: ${modelDisplay}`);
+  if (params.tuiDiagnostics) {
+    lines.push("");
+    lines.push("tui:");
+    lines.push(`- config_configured: ${params.tuiDiagnostics.configured ? "true" : "false"}`);
+    lines.push(`- selected_config_path: ${params.tuiDiagnostics.selectedPath ?? "(none)"}`);
+    lines.push(`- present_config_paths: ${joinOrNone(params.tuiDiagnostics.presentPaths)}`);
+    lines.push(`- candidate_config_paths: ${joinOrNone(params.tuiDiagnostics.candidatePaths)}`);
+    lines.push(`- quota_plugin_configured: ${params.tuiDiagnostics.quotaPluginConfigured ? "true" : "false"}`);
+    lines.push(`- quota_plugin_paths: ${joinOrNone(params.tuiDiagnostics.quotaPluginConfigPaths)}`);
+  }
   lines.push("- providers:");
   for (const p of params.providerAvailability) {
     const bits: string[] = [];

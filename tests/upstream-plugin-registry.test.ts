@@ -11,19 +11,19 @@ describe("upstream-plugin-registry", () => {
 
     const latest = normalizeLatestPublishedPluginVersion(spec, {
       "dist-tags": {
-        latest: "0.0.9",
+        latest: "0.4.3",
       },
       repository: {
         type: "git",
         url: "git+https://github.com/PoolPirate/opencode-cursor.git",
       },
       time: {
-        "0.0.9": "2026-03-22T20:35:43.105Z",
+        "0.4.3": "2026-04-08T14:04:58.057Z",
       },
       versions: {
-        "0.0.9": {
+        "0.4.3": {
           dist: {
-            tarball: "https://example.test/@playwo/opencode-cursor-oauth/-/opencode-cursor-oauth-0.0.9.tgz",
+            tarball: "https://example.test/@playwo/opencode-cursor-oauth/-/opencode-cursor-oauth-0.4.3.tgz",
           },
           repository: {
             type: "git",
@@ -36,7 +36,7 @@ describe("upstream-plugin-registry", () => {
     expect(latest.packageName).toBe("@playwo/opencode-cursor-oauth");
     expect(latest.repo).toBe("PoolPirate/opencode-cursor");
     expect(latest.npmUrl).toBe(
-      "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/0.0.9",
+      "https://www.npmjs.com/package/%40playwo/opencode-cursor-oauth/v/0.4.3",
     );
   });
 });

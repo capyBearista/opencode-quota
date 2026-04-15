@@ -103,4 +103,32 @@ describe("loadConfig security precedence", () => {
     expect(cfg.toastStyle).toBe("grouped");
     expect(cfg.onlyCurrentModel).toBe(true);
   });
+
+  it("supports file-only loading with an explicit cwd override", async () => {
+    const altWorkspaceDir = join(tempDir, "alt-workspace");
+    mkdirSync(altWorkspaceDir, { recursive: true });
+
+    writeFileSync(
+      join(altWorkspaceDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabledProviders: ["nano-gpt"],
+            toastStyle: "grouped",
+            onlyCurrentModel: true,
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    const meta = { source: "defaults" as const, paths: [] as string[] };
+    const cfg = await loadConfig(undefined, meta, { cwd: altWorkspaceDir });
+
+    expect(cfg.enabledProviders).toEqual(["nanogpt"]);
+    expect(cfg.toastStyle).toBe("grouped");
+    expect(cfg.onlyCurrentModel).toBe(true);
+    expect(meta.source).toBe("files");
+    expect(meta.paths).toContain(join(altWorkspaceDir, "opencode.json") + " (experimental.quotaToast)");
+  });
 });
