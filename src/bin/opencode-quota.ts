@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+import { realpathSync } from "fs";
 import { pathToFileURL } from "url";
 
 import { runInitInstaller } from "../lib/init-installer.js";
@@ -39,7 +39,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 }
 
 const isDirectRun =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (isDirectRun) {
   void main().then((code) => {
