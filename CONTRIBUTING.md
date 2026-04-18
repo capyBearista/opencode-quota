@@ -39,6 +39,10 @@ Pre-commit hooks currently run:
 - `npm run typecheck`
 - `npm test`
 
+Pre-push hooks currently run:
+
+- `npm ci`
+
 Run checks manually before opening a PR:
 
 ```sh
