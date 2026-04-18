@@ -10,8 +10,8 @@
 
 What you get:
 
+- TUI sidebar panel with quota 
 - popup quota toasts after assistant responses
-- TUI sidebar panel
 - manual `/quota`, `/quota_status`, and `/tokens_*` commands
 
 **Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, MiniMax Coding Plan, Chutes AI, Firmware AI, Google Antigravity, Z.ai Coding Plan, NanoGPT, and OpenCode Go.
@@ -20,15 +20,30 @@ What you get:
 
 <table>
   <tr>
-    <td width="50%" align="center">Example of toast</td>
+    <td width="25%"></td>
+    <td width="50%" align="center">Example of TUI sidebar</td>
+    <td width="25%"></td>
+  </tr>
+  <tr>
+    <td width="25%"></td>
+    <td width="50%">
+      <img src="https://shawnkiser.com/opencode-quota/sidebar.webp" alt="Image of opencode-quota /tokens_weekly output" />
+    </td>
+    <td width="25%"></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center">Example of popup toast</td>
     <td width="50%" align="center">Example of <code>/tokens_weekly</code></td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="https://shawnkiser.com/opencode-quota/toasts.webp" alt="Image of opencode-quota toast" />
+      <img src="https://shawnkiser.com/opencode-quota/toast.webp" alt="Image of opencode-quota toast" />
     </td>
     <td width="50%">
-      <img src="https://shawnkiser.com/opencode-quota/tokens.webp" alt="Image of opencode-quota /tokens_weekly output" />
+      <img src="https://shawnkiser.com/opencode-quota/token.webp" alt="Image of opencode-quota /tokens_weekly output" />
     </td>
   </tr>
 </table>
