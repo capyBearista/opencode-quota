@@ -28,3 +28,4 @@ references/*
 .git.backup-*/
 docs/
 AGENTS.md
+/images
