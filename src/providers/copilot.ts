@@ -8,6 +8,7 @@ import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from ".
 import { queryCopilotQuota } from "../lib/copilot.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import type { CopilotEnterpriseUsageResult, CopilotOrganizationUsageResult } from "../lib/types.js";
+import { notAttemptedResult } from "./result-helpers.js";
 
 function formatBillingPeriod(period: { year: number; month: number }): string {
   return `${period.year}-${String(period.month).padStart(2, "0")}`;
@@ -61,7 +62,7 @@ export const copilotProvider: QuotaProvider = {
     const style = _ctx.config?.formatStyle ?? "classic";
 
     if (!result) {
-      return { attempted: false, entries: [], errors: [] };
+      return notAttemptedResult();
     }
 
     if (!result.success) {

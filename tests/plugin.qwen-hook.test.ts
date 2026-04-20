@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createPluginTestClient as createClient,
   makeQuotaToastTestConfig,
-  seedDefaultPricingMocks,
+  seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
 
 const mocks = vi.hoisted(() => ({
@@ -90,8 +90,9 @@ vi.mock("../src/lib/modelsdev-pricing.js", () => ({
 
 describe("plugin qwen question hook", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.loadConfig.mockResolvedValue(makeQuotaToastTestConfig({ showOnQuestion: false }));
+    seedDefaultPluginBootstrapMocks(mocks, {
+      configOverrides: { showOnQuestion: false },
+    });
     mocks.resolveQwenLocalPlanCached.mockResolvedValue({
       state: "qwen_free",
       accessToken: "token",
@@ -109,7 +110,6 @@ describe("plugin qwen question hook", () => {
       recent: [],
       updatedAt: 1,
     });
-    seedDefaultPricingMocks(mocks);
   });
 
   it("records qwen free completion on successful qwen question execution", async () => {

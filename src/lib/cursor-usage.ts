@@ -47,6 +47,35 @@ function accumulateBucket(bucket: CursorUsageBucket, tokens: TokenBuckets, costU
   bucket.messageCount += 1;
 }
 
+function accumulateKnownUsage(params: {
+  bucket: CursorUsageBucket;
+  total: CursorUsageBucket;
+  tokens: TokenBuckets;
+  costUsd: number;
+}): void {
+  accumulateBucket(params.bucket, params.tokens, params.costUsd);
+  accumulateBucket(params.total, params.tokens, params.costUsd);
+}
+
+function accumulateUnknownModelUsage(
+  bucket: Map<string, { sourceModelID: string; messageCount: number; tokens: TokenBuckets }>,
+  total: CursorUsageBucket,
+  sourceModelID: string,
+  tokens: TokenBuckets,
+): void {
+  total.tokens = addTokenBuckets(total.tokens, tokens);
+  total.messageCount += 1;
+
+  const existing = bucket.get(sourceModelID);
+  if (existing) {
+    existing.tokens = addTokenBuckets(existing.tokens, tokens);
+    existing.messageCount += 1;
+    return;
+  }
+
+  bucket.set(sourceModelID, { sourceModelID, messageCount: 1, tokens });
+}
+
 function isCursorMessage(msg: OpenCodeMessage): boolean {
   return isCursorProviderId(msg.providerID) || isCursorModelId(msg.modelID);
 }
@@ -111,8 +140,7 @@ export async function getCurrentCursorUsageSummary(params?: {
       const cost = lookupCursorLocalCost(resolved.model);
       if (!cost) continue;
       const costUsd = calculateUsdFromTokenBuckets(cost, tokens);
-      accumulateBucket(autoComposer, tokens, costUsd);
-      accumulateBucket(total, tokens, costUsd);
+      accumulateKnownUsage({ bucket: autoComposer, total, tokens, costUsd });
       continue;
     }
 
@@ -125,22 +153,13 @@ export async function getCurrentCursorUsageSummary(params?: {
         const cost = lookupCost(mapped.key.provider, mapped.key.model);
         if (cost) {
           const costUsd = calculateUsdFromTokenBuckets(cost, tokens);
-          accumulateBucket(api, tokens, costUsd);
-          accumulateBucket(total, tokens, costUsd);
+          accumulateKnownUsage({ bucket: api, total, tokens, costUsd });
           continue;
         }
       }
     }
 
-    total.tokens = addTokenBuckets(total.tokens, tokens);
-    total.messageCount += 1;
-    const existing = unknownModels.get(sourceModelID);
-    if (existing) {
-      existing.tokens = addTokenBuckets(existing.tokens, tokens);
-      existing.messageCount += 1;
-    } else {
-      unknownModels.set(sourceModelID, { sourceModelID, messageCount: 1, tokens });
-    }
+    accumulateUnknownModelUsage(unknownModels, total, sourceModelID, tokens);
   }
 
   return {

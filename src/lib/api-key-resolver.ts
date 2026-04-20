@@ -19,6 +19,15 @@ export interface ConfigCandidate {
   isJsonc: boolean;
 }
 
+function buildOpencodeConfigCandidates(configDirs: readonly string[]): ConfigCandidate[] {
+  const candidates: ConfigCandidate[] = [];
+  for (const dir of configDirs) {
+    candidates.push({ path: join(dir, "opencode.jsonc"), isJsonc: true });
+    candidates.push({ path: join(dir, "opencode.json"), isJsonc: false });
+  }
+  return candidates;
+}
+
 /**
  * Get candidate paths for opencode.json/opencode.jsonc files.
  *
@@ -29,16 +38,10 @@ export function getOpencodeConfigCandidatePaths(): ConfigCandidate[] {
   const cwd = process.cwd();
   const { configDirs } = getOpencodeRuntimeDirCandidates();
 
-  const global: ConfigCandidate[] = [];
-  for (const dir of configDirs) {
-    global.push({ path: join(dir, "opencode.jsonc"), isJsonc: true });
-    global.push({ path: join(dir, "opencode.json"), isJsonc: false });
-  }
-
   return [
     { path: join(cwd, "opencode.jsonc"), isJsonc: true },
     { path: join(cwd, "opencode.json"), isJsonc: false },
-    ...global,
+    ...buildOpencodeConfigCandidates(configDirs),
   ];
 }
 
@@ -50,14 +53,7 @@ export function getOpencodeConfigCandidatePaths(): ConfigCandidate[] {
  */
 export function getGlobalOpencodeConfigCandidatePaths(): ConfigCandidate[] {
   const { configDirs } = getOpencodeRuntimeDirCandidates();
-
-  const global: ConfigCandidate[] = [];
-  for (const dir of configDirs) {
-    global.push({ path: join(dir, "opencode.jsonc"), isJsonc: true });
-    global.push({ path: join(dir, "opencode.json"), isJsonc: false });
-  }
-
-  return global;
+  return buildOpencodeConfigCandidates(configDirs);
 }
 
 /**

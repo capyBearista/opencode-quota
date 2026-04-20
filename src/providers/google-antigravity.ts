@@ -10,6 +10,7 @@ import type {
 } from "../lib/entries.js";
 import type { GoogleModelId, GoogleResult } from "../lib/types.js";
 import { hasAntigravityQuotaRuntimeAvailable, queryGoogleQuota } from "../lib/google.js";
+import { notAttemptedResult } from "./result-helpers.js";
 
 function truncateEmail(email?: string): string {
   if (!email) return "Unknown";
@@ -54,7 +55,7 @@ export const googleAntigravityProvider: QuotaProvider = {
     const result = await queryGoogleQuota(modelIds);
 
     if (!result) {
-      return { attempted: false, entries: [], errors: [] };
+      return notAttemptedResult();
     }
 
     if (!result.success) {

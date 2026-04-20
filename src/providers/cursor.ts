@@ -14,6 +14,7 @@ import {
 } from "../lib/cursor-pricing.js";
 import { inspectCursorOpenCodeIntegration } from "../lib/cursor-detection.js";
 import { getCurrentCursorUsageSummary } from "../lib/cursor-usage.js";
+import { notAttemptedResult } from "./result-helpers.js";
 
 function buildCursorGroup(plan: string | null): string {
   return plan ? `Cursor (${plan})` : "Cursor";
@@ -61,7 +62,7 @@ export const cursorProvider: QuotaProvider = {
     });
 
     if (usage.total.messageCount === 0 && includedApiUsd === undefined) {
-      return { attempted: false, entries: [], errors: [] };
+      return notAttemptedResult();
     }
 
     const errors =

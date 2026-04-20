@@ -46,6 +46,10 @@ function dedupe(list: string[]): string[] {
   return [...new Set(list.filter(Boolean))];
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
 function getCursorHomeDir(): string {
   return process.env.CURSOR_ACP_HOME_DIR?.trim() || homedir();
 }
@@ -163,10 +167,22 @@ function pluginIncludesCursor(value: unknown): boolean {
 }
 
 function providerConfigIncludesCursor(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
+  const providerConfig = asRecord(value);
+  if (!providerConfig) return false;
   return getQuotaProviderRuntimeIds("cursor").some((id) =>
-    Object.prototype.hasOwnProperty.call(value, id),
+    Object.prototype.hasOwnProperty.call(providerConfig, id),
   );
+}
+
+function parseOpenCodeConfig(raw: string, isJsonc: boolean): {
+  plugin: unknown[];
+  provider: Record<string, unknown> | null;
+} {
+  const parsed = asRecord(parseJsonOrJsonc(raw, isJsonc));
+  return {
+    plugin: Array.isArray(parsed?.plugin) ? parsed.plugin : [],
+    provider: asRecord(parsed?.provider),
+  };
 }
 
 export async function inspectCursorOpenCodeIntegration(): Promise<CursorOpenCodeIntegration> {
@@ -187,9 +203,7 @@ export async function inspectCursorOpenCodeIntegration(): Promise<CursorOpenCode
 
     try {
       const raw = await readFile(path, "utf8");
-      const parsed = parseJsonOrJsonc(raw, path.endsWith(".jsonc")) as any;
-      const plugin = Array.isArray(parsed?.plugin) ? parsed.plugin : [];
-      const provider = parsed?.provider;
+      const { plugin, provider } = parseOpenCodeConfig(raw, path.endsWith(".jsonc"));
 
       const matchedPlugin = plugin.some(pluginIncludesCursor);
       const matchedProvider = providerConfigIncludesCursor(provider);

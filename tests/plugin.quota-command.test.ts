@@ -4,9 +4,7 @@ import { COMMAND_HANDLED_SENTINEL } from "../src/lib/command-handled.js";
 import { DEFAULT_CONFIG } from "../src/lib/types.js";
 import {
   createPluginTestClient as createClient,
-  makeQuotaToastTestConfig,
-  resetPluginTestState,
-  seedDefaultPricingMocks,
+  seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
 
 const mocks = vi.hoisted(() => ({
@@ -82,25 +80,17 @@ vi.mock("../src/lib/alibaba-auth.js", () => ({
 
 describe("/quota command behavior", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    resetPluginTestState();
-
-    mocks.loadConfig.mockResolvedValue(
-      makeQuotaToastTestConfig({
+    seedDefaultPluginBootstrapMocks(mocks, {
+      configOverrides: {
         enabled: true,
         showOnQuestion: false,
         showSessionTokens: false,
         minIntervalMs: 60_000,
-      }),
-    );
-    mocks.getProviders.mockReturnValue([]);
+      },
+      resetPluginState: true,
+    });
     mocks.resolveQwenLocalPlanCached.mockResolvedValue({ state: "none" });
     mocks.resolveAlibabaCodingPlanAuthCached.mockResolvedValue({ state: "none" });
-    mocks.fetchSessionTokensForDisplay.mockResolvedValue({
-      sessionTokens: undefined,
-      error: undefined,
-    });
-    seedDefaultPricingMocks(mocks);
   });
 
   it("applies pricing snapshot selection from config on first use", async () => {

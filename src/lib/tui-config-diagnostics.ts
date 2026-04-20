@@ -2,8 +2,6 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-import { parseJsonOrJsonc } from "./jsonc.js";
-import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
 import {
   dedupeNonEmptyStrings,
   extractPluginSpecsFromParsedConfig,
@@ -11,6 +9,8 @@ import {
   getConfigFileCandidatePaths,
   isQuotaPluginSpec,
 } from "./config-file-utils.js";
+import { parseJsonOrJsonc } from "./jsonc.js";
+import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
 
 export interface TuiConfigDiagnostics {
   configured: boolean;
@@ -25,7 +25,7 @@ function getTuiConfigCandidatePaths(params?: { cwd?: string }): string[] {
   const cwd = params?.cwd ?? process.cwd();
   const worktreeRoot = findGitWorktreeRoot(cwd);
   const { configDirs } = getOpencodeRuntimeDirCandidates();
-  const locations = dedupeNonEmptyStrings([
+  const searchRoots = dedupeNonEmptyStrings([
     ...configDirs,
     worktreeRoot ?? "",
     worktreeRoot ? join(worktreeRoot, ".opencode") : "",
@@ -33,10 +33,10 @@ function getTuiConfigCandidatePaths(params?: { cwd?: string }): string[] {
     join(cwd, ".opencode"),
   ]);
 
-  return locations.flatMap((dir) => getConfigFileCandidatePaths(dir, "tui"));
+  return searchRoots.flatMap((dir) => getConfigFileCandidatePaths(dir, "tui"));
 }
 
-async function readJson(path: string): Promise<unknown | null> {
+async function readConfigJson(path: string): Promise<unknown | null> {
   try {
     const content = await readFile(path, "utf-8");
     return parseJsonOrJsonc(content, path.endsWith(".jsonc"));
@@ -45,18 +45,24 @@ async function readJson(path: string): Promise<unknown | null> {
   }
 }
 
-export async function inspectTuiConfig(params?: { cwd?: string }): Promise<TuiConfigDiagnostics> {
-  const candidatePaths = getTuiConfigCandidatePaths(params);
-  const presentPaths = candidatePaths.filter((path) => existsSync(path));
+async function findQuotaPluginConfigPaths(paths: string[]): Promise<string[]> {
   const quotaPluginConfigPaths: string[] = [];
 
-  for (const path of presentPaths) {
-    const parsed = await readJson(path);
+  for (const path of paths) {
+    const parsed = await readConfigJson(path);
     const specs = extractPluginSpecsFromParsedConfig(parsed);
     if (specs.some((spec) => isQuotaPluginSpec(spec, "tui"))) {
       quotaPluginConfigPaths.push(path);
     }
   }
+
+  return quotaPluginConfigPaths;
+}
+
+export async function inspectTuiConfig(params?: { cwd?: string }): Promise<TuiConfigDiagnostics> {
+  const candidatePaths = getTuiConfigCandidatePaths(params);
+  const presentPaths = candidatePaths.filter((path) => existsSync(path));
+  const quotaPluginConfigPaths = await findQuotaPluginConfigPaths(presentPaths);
 
   return {
     configured: presentPaths.length > 0,

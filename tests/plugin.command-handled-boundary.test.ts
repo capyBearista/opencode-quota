@@ -4,8 +4,7 @@ import { COMMAND_HANDLED_SENTINEL } from "../src/lib/command-handled.js";
 import {
   createPluginTestClient as createClient,
   makeQuotaToastTestConfig,
-  resetPluginTestState,
-  seedDefaultPricingMocks,
+  seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
 
 const mocks = vi.hoisted(() => ({
@@ -60,12 +59,10 @@ vi.mock("../src/lib/modelsdev-pricing.js", () => ({
 
 describe("plugin command handled boundary", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    resetPluginTestState();
-
-    mocks.loadConfig.mockResolvedValue(makeQuotaToastTestConfig({ enabled: true }));
-    mocks.getProviders.mockReturnValue([]);
-    seedDefaultPricingMocks(mocks);
+    seedDefaultPluginBootstrapMocks(mocks, {
+      configOverrides: { enabled: true },
+      resetPluginState: true,
+    });
   });
 
   it("propagates command-handled sentinel errors to abort command pipeline", async () => {

@@ -18,6 +18,24 @@ interface PricingMocks {
   maybeRefreshPricingSnapshot: ResolvedValueMock;
 }
 
+interface SessionTokenMocks {
+  fetchSessionTokensForDisplay: ResolvedValueMock;
+}
+
+interface PluginBootstrapMocks extends PricingMocks {
+  loadConfig: ResolvedValueMock;
+  getProviders?: ReturnValueMock;
+  fetchSessionTokensForDisplay?: ResolvedValueMock;
+}
+
+interface PluginBootstrapOptions {
+  configOverrides?: Partial<typeof DEFAULT_CONFIG>;
+  providers?: unknown[];
+  resetModules?: boolean;
+  resetPluginState?: boolean;
+  seedSessionTokens?: boolean;
+}
+
 export function resetPluginTestState(): void {
   delete (globalThis as any).__opencodeQuotaCommandCache;
 }
@@ -47,6 +65,37 @@ export function seedDefaultPricingMocks(mocks: PricingMocks): void {
     updated: false,
     state: { version: 1, updatedAt: Date.now() },
   });
+}
+
+export function seedDefaultSessionTokenMocks(mocks: SessionTokenMocks): void {
+  mocks.fetchSessionTokensForDisplay.mockResolvedValue({
+    sessionTokens: undefined,
+    error: undefined,
+  });
+}
+
+export function seedDefaultPluginBootstrapMocks(
+  mocks: PluginBootstrapMocks,
+  options: PluginBootstrapOptions = {},
+): void {
+  vi.clearAllMocks();
+
+  if (options.resetModules) {
+    vi.resetModules();
+  }
+
+  if (options.resetPluginState) {
+    resetPluginTestState();
+  }
+
+  mocks.loadConfig.mockResolvedValue(makeQuotaToastTestConfig(options.configOverrides));
+  mocks.getProviders?.mockReturnValue(options.providers ?? []);
+
+  if (mocks.fetchSessionTokensForDisplay && options.seedSessionTokens !== false) {
+    seedDefaultSessionTokenMocks(mocks);
+  }
+
+  seedDefaultPricingMocks(mocks);
 }
 
 export function createPluginTestClient({

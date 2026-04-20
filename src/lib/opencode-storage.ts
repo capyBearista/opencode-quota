@@ -102,9 +102,13 @@ type SessionRow = {
   time_updated: number;
 };
 
-function safeJsonParse(raw: string): any | null {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function safeJsonParse(raw: string): unknown | null {
   try {
-    return JSON.parse(raw) as any;
+    return JSON.parse(raw) as unknown;
   } catch {
     return null;
   }
@@ -127,25 +131,26 @@ function mapRowToOpenCodeMessage(row: MessageRow): OpenCodeMessage | null {
   if (typeof row.id !== "string" || typeof row.session_id !== "string") return null;
   if (typeof row.time_created !== "number") return null;
 
-  const payload = safeJsonParse(row.data);
-  if (!payload || typeof payload !== "object") return null;
+  const payload = asRecord(safeJsonParse(row.data));
+  if (!payload) return null;
 
-  const role = normalizeString((payload as any).role) ?? "unknown";
+  const payloadTime = asRecord(payload.time);
+  const role = normalizeString(payload.role) ?? "unknown";
 
   return {
     id: row.id,
     sessionID: row.session_id,
     role,
-    providerID: normalizeString((payload as any).providerID),
-    modelID: normalizeString((payload as any).modelID),
-    tokens: (payload as any).tokens,
-    cost: normalizeNumber((payload as any).cost),
+    providerID: normalizeString(payload.providerID),
+    modelID: normalizeString(payload.modelID),
+    tokens: payload.tokens as OpenCodeTokens | undefined,
+    cost: normalizeNumber(payload.cost),
     time: {
       created: row.time_created,
-      completed: normalizeNumber((payload as any).time?.completed),
+      completed: normalizeNumber(payloadTime?.completed),
     },
-    agent: normalizeString((payload as any).agent),
-    mode: normalizeString((payload as any).mode),
+    agent: normalizeString(payload.agent),
+    mode: normalizeString(payload.mode),
   };
 }
 
@@ -284,8 +289,8 @@ export async function getOpenCodeDbStats(): Promise<OpenCodeDbStats> {
     } else {
       const rows = conn.all<{ data: string }>(`SELECT data FROM "message"`);
       for (const r of rows) {
-        const payload = safeJsonParse(r.data);
-        if (payload && (payload as any).role === "assistant") assistantCount += 1;
+        const payload = asRecord(safeJsonParse(r.data));
+        if (payload?.role === "assistant") assistantCount += 1;
       }
     }
 

@@ -50,7 +50,7 @@ export type QuotaToastEntry =
 export function isValueEntry(
   e: QuotaToastEntry,
 ): e is Extract<QuotaToastEntry, { kind: "value" }> {
-  return (e as any).kind === "value";
+  return e.kind === "value";
 }
 
 export function isPercentEntry(

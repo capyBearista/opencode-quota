@@ -4,28 +4,42 @@ export interface SqliteConn {
   close(): void;
 }
 
+interface SqliteStatement {
+  all(...params: unknown[]): unknown[];
+  get(...params: unknown[]): unknown;
+  run(...params: unknown[]): unknown;
+}
+
+interface SqliteDatabase {
+  query(sql: string): SqliteStatement;
+  close(): void;
+}
+
+interface BunSqliteModule {
+  Database: new (path: string, options: { readonly: boolean }) => SqliteDatabase;
+}
+
 function toParams(params?: unknown[]): unknown[] {
   return Array.isArray(params) ? params : [];
 }
 
+function runPragma(db: SqliteDatabase, sql: string): void {
+  try {
+    db.query(sql).run();
+  } catch {
+    // ignore
+  }
+}
+
 export async function openOpenCodeSqliteReadOnly(dbPath: string): Promise<SqliteConn> {
-  const mod = await import("bun:sqlite");
-  const Database = (mod as any).Database as any;
-  const db = new Database(dbPath, { readonly: true });
+  const mod = (await import("bun:sqlite")) as unknown as BunSqliteModule;
+  const db = new mod.Database(dbPath, { readonly: true });
 
   // Keep reads deterministic and avoid accidental writes.
-  try {
-    db.query("PRAGMA query_only = ON;").run();
-  } catch {
-    // ignore
-  }
+  runPragma(db, "PRAGMA query_only = ON;");
 
   // Avoid transient SQLITE_BUSY errors (WAL).
-  try {
-    db.query("PRAGMA busy_timeout = 5000;").run();
-  } catch {
-    // ignore
-  }
+  runPragma(db, "PRAGMA busy_timeout = 5000;");
 
   return {
     all<T = unknown>(sql: string, params?: unknown[]): T[] {

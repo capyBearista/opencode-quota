@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMAND_HANDLED_SENTINEL } from "../src/lib/command-handled.js";
 import {
   createPluginTestClient as createClient,
-  makeQuotaToastTestConfig,
-  resetPluginTestState,
-  seedDefaultPricingMocks,
+  seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
 
 const mocks = vi.hoisted(() => ({
@@ -100,24 +98,16 @@ vi.mock("../src/lib/quota-stats-format.js", () => ({
 
 describe("/tokens_session_all command", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.resetModules();
-    resetPluginTestState();
-
-    mocks.loadConfig.mockResolvedValue(
-      makeQuotaToastTestConfig({
+    seedDefaultPluginBootstrapMocks(mocks, {
+      configOverrides: {
         enabled: true,
         showOnQuestion: false,
         showSessionTokens: false,
         minIntervalMs: 60_000,
-      }),
-    );
-    mocks.getProviders.mockReturnValue([]);
-    mocks.fetchSessionTokensForDisplay.mockResolvedValue({
-      sessionTokens: undefined,
-      error: undefined,
+      },
+      resetModules: true,
+      resetPluginState: true,
     });
-    seedDefaultPricingMocks(mocks);
     mocks.aggregateUsage.mockResolvedValue({ totals: {}, bySession: [] });
     mocks.formatQuotaStatsReport.mockReturnValue("formatted token report");
     mocks.resolveSessionTree.mockResolvedValue([
