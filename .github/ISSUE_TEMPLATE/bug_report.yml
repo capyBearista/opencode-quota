@@ -77,8 +77,10 @@ body:
     id: logs
     attributes:
       label: Relevant logs/output
-      description: Paste `/quota_status` output or test output when relevant.
+      description: Required: paste `/quota_status` output (add test output if helpful).
       render: shell
+    validations:
+      required: true
 
   - type: textarea
     id: no_latest_reason
