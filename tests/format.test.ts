@@ -22,6 +22,8 @@ describe("formatQuotaRows", () => {
 
     expect(out).toContain("Copilot");
     expect(out).toContain("75% left");
+    expect(out).not.toContain("Quota (remaining)");
+    expect(out).not.toContain("Quota (used)");
   });
 
   it("uses tiny layout when maxWidth is small", () => {
@@ -60,6 +62,8 @@ describe("formatQuotaRows", () => {
     const barLine = lines[1] ?? "";
     expect(barLine).toContain("19% used");
     expect(barLine).not.toContain("81% left");
+    expect(out).not.toContain("Quota (remaining)");
+    expect(out).not.toContain("Quota (used)");
     expect((barLine.match(/█/g) ?? [])).toHaveLength(2);
   });
 
@@ -167,6 +171,8 @@ describe("formatQuotaRows", () => {
       .find((line) => line.includes("%"));
     expect(barLine).toContain("19% used");
     expect(barLine).not.toContain("81% left");
+    expect(out).not.toContain("Quota (remaining)");
+    expect(out).not.toContain("Quota (used)");
     expect((barLine?.match(/█/g) ?? [])).toHaveLength(2);
   });
 

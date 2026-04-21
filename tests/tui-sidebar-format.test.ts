@@ -80,15 +80,17 @@ describe("buildSidebarQuotaPanelLines", () => {
       sessionTokens: data.sessionTokens,
     }).split("\n");
 
-    expect(
-      buildSidebarQuotaPanelLines({
-        data,
-        config: {
-          formatStyle: "classic",
-          percentDisplayMode: "remaining",
-        },
-      }),
-    ).toEqual(expected);
+    const lines = buildSidebarQuotaPanelLines({
+      data,
+      config: {
+        formatStyle: "classic",
+        percentDisplayMode: "remaining",
+      },
+    });
+
+    expect(lines).toEqual(expected);
+    expect(lines.join("\n")).not.toContain("Quota (remaining)");
+    expect(lines.join("\n")).not.toContain("Quota (used)");
   });
 
   it("renders grouped sidebar output via the shared grouped formatter", () => {
@@ -185,6 +187,8 @@ describe("buildSidebarQuotaPanelLines", () => {
     const barLine = lines[1] ?? "";
     expect(barLine).toContain("19% used");
     expect(barLine).not.toContain("81% left");
+    expect(lines.join("\n")).not.toContain("Quota (remaining)");
+    expect(lines.join("\n")).not.toContain("Quota (used)");
     expect((barLine.match(/█/g) ?? [])).toHaveLength(5);
   });
 
