@@ -30,7 +30,7 @@ export const syntheticProvider: QuotaProvider = {
     return provider.includes("synthetic");
   },
 
-  async fetch(_ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+  async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
     const result = await querySyntheticQuota();
 
     if (!result) {
@@ -41,12 +41,28 @@ export const syntheticProvider: QuotaProvider = {
       return attemptedErrorResult("Synthetic", result.error);
     }
 
+    const fiveHour = result.windows.fiveHour;
+    const style = ctx.config.formatStyle ?? "classic";
+
+    if (style === "grouped") {
+      return attemptedResult([
+        {
+          name: "Synthetic 5h",
+          group: "Synthetic",
+          label: "5h:",
+          percentRemaining: fiveHour.percentRemaining,
+          right: `${fiveHour.usedRequests}/${fiveHour.requestLimit}`,
+          resetTimeIso: fiveHour.resetTimeIso,
+        },
+      ]);
+    }
+
     return attemptedResult([
       {
         name: "Synthetic",
-        percentRemaining: result.percentRemaining,
-        right: `${result.usedRequests}/${result.requestLimit}`,
-        resetTimeIso: result.resetTimeIso,
+        percentRemaining: fiveHour.percentRemaining,
+        right: `${fiveHour.usedRequests}/${fiveHour.requestLimit}`,
+        resetTimeIso: fiveHour.resetTimeIso,
       },
     ]);
   },

@@ -5,7 +5,7 @@
  * https://api.synthetic.new/v2/quotas
  */
 
-import type { QuotaError, SyntheticResult } from "./types.js";
+import type { QuotaError, SyntheticResult, SyntheticQuotaWindow } from "./types.js";
 import { sanitizeDisplaySnippet, sanitizeDisplayText } from "./display-sanitize.js";
 import { clampPercent } from "./format-utils.js";
 import { fetchWithTimeout } from "./http.js";
@@ -61,6 +61,25 @@ function normalizeResetTimeIso(value: unknown): string | undefined {
   return new Date(parsed).toISOString();
 }
 
+function buildFiveHourWindow(subscription: Record<string, unknown>): SyntheticQuotaWindow | QuotaError {
+  const limit = subscription.limit;
+  if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
+    return invalidSyntheticResponse("Synthetic API response missing subscription.limit");
+  }
+
+  const requests = subscription.requests;
+  if (typeof requests !== "number" || !Number.isFinite(requests) || requests < 0) {
+    return invalidSyntheticResponse("Synthetic API response missing subscription.requests");
+  }
+
+  return {
+    requestLimit: limit,
+    usedRequests: requests,
+    percentRemaining: clampPercent(((limit - requests) / limit) * 100),
+    resetTimeIso: normalizeResetTimeIso(subscription.renewsAt),
+  };
+}
+
 export async function querySyntheticQuota(): Promise<SyntheticResult> {
   const resolved = await resolveSyntheticApiKey();
   if (!resolved) return null;
@@ -88,26 +107,16 @@ export async function querySyntheticQuota(): Promise<SyntheticResult> {
       return invalidSyntheticResponse("Synthetic API response missing subscription");
     }
 
-    const limit = subscription.limit;
-    if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
-      return invalidSyntheticResponse("Synthetic API response missing subscription.limit");
+    const fiveHour = buildFiveHourWindow(subscription);
+    if (!("requestLimit" in fiveHour)) {
+      return fiveHour;
     }
-
-    const requests = subscription.requests;
-    if (typeof requests !== "number" || !Number.isFinite(requests) || requests < 0) {
-      return invalidSyntheticResponse("Synthetic API response missing subscription.requests");
-    }
-
-    const renewsAt = normalizeResetTimeIso(subscription.renewsAt);
-
-    const percentRemaining = clampPercent(((limit - requests) / limit) * 100);
 
     return {
       success: true,
-      requestLimit: limit,
-      usedRequests: requests,
-      percentRemaining,
-      resetTimeIso: renewsAt,
+      windows: {
+        fiveHour,
+      },
     };
   } catch (err) {
     return {

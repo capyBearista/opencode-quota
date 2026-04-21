@@ -537,9 +537,10 @@ If OpenCode already has Synthetic configured, it should work automatically. Opti
 For security, provider secrets are read from `SYNTHETIC_API_KEY`, your user/global OpenCode config, or `auth.json.synthetic` only. Repo-local `opencode.json` / `opencode.jsonc` is ignored for `provider.synthetic.options.apiKey`.
 
 - The plugin calls `GET https://api.synthetic.new/v2/quotas`.
-- It reads `subscription.limit`, `subscription.requests`, and `subscription.renewsAt`.
+- It reads the documented subscription window fields `subscription.limit`, `subscription.requests`, and `subscription.renewsAt`.
 - Synthetic currently expects numeric JSON values for `subscription.limit` and `subscription.requests`; malformed or stringified values are treated as API-shape errors. Invalid `subscription.renewsAt` values are ignored.
-- `/quota`, toasts, and the sidebar show one Synthetic row with remaining percent plus the same compact `used/limit` summary used by other percent-based providers when that row data is available.
+- `/quota`, toasts, and the sidebar currently expose the documented Synthetic subscription quota only. Grouped mode labels it as `5h:`; classic mode collapses it to one `Synthetic` row with the same compact `used/limit` summary used by other percent-based providers.
+- Weekly credits and other billing-dashboard metrics are not shown unless Synthetic documents them in a public API response the plugin can verify.
 - `/quota_status` shows a `synthetic` section with API-key diagnostics only; it does not do a live Synthetic fetch there.
 - Allowed env templates are limited to `{env:SYNTHETIC_API_KEY}`.
 

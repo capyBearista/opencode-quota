@@ -209,16 +209,16 @@ describe("formatQuotaRows", () => {
       layout: { maxWidth: 50, narrowAt: 42, tinyAt: 32 },
       entries: [
         {
-          name: "Synthetic",
+          name: "Synthetic 5h",
           group: "Synthetic",
-          label: "Quota:",
+          label: "5h:",
           right: "0/135",
           percentRemaining: 100,
         },
       ],
     });
 
-    expect(out).toContain("Quota: 0/135");
+    expect(out).toContain("5h: 0/135");
     expect(out).toContain("100% left");
   });
 

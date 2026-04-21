@@ -29,10 +29,14 @@ describe("synthetic provider", () => {
     const { querySyntheticQuota } = await import("../src/lib/synthetic.js");
     (querySyntheticQuota as any).mockResolvedValueOnce({
       success: true,
-      requestLimit: 100,
-      usedRequests: 25,
-      percentRemaining: 75,
-      resetTimeIso: "2026-01-20T18:12:03.000Z",
+      windows: {
+        fiveHour: {
+          requestLimit: 100,
+          usedRequests: 25,
+          percentRemaining: 75,
+          resetTimeIso: "2026-01-20T18:12:03.000Z",
+        },
+      },
     });
 
     const out = await syntheticProvider.fetch({ config: { formatStyle: "classic" } } as any);
@@ -42,6 +46,34 @@ describe("synthetic provider", () => {
         name: "Synthetic",
         percentRemaining: 75,
         right: "25/100",
+        resetTimeIso: "2026-01-20T18:12:03.000Z",
+      },
+    ]);
+  });
+
+  it("maps the documented subscription window into a grouped 5h row", async () => {
+    const { querySyntheticQuota } = await import("../src/lib/synthetic.js");
+    (querySyntheticQuota as any).mockResolvedValueOnce({
+      success: true,
+      windows: {
+        fiveHour: {
+          requestLimit: 500,
+          usedRequests: 52,
+          percentRemaining: 89.6,
+          resetTimeIso: "2026-01-20T18:12:03.000Z",
+        },
+      },
+    });
+
+    const out = await syntheticProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    expectAttemptedWithNoErrors(out);
+    expect(out.entries).toEqual([
+      {
+        name: "Synthetic 5h",
+        group: "Synthetic",
+        label: "5h:",
+        percentRemaining: 89.6,
+        right: "52/500",
         resetTimeIso: "2026-01-20T18:12:03.000Z",
       },
     ]);

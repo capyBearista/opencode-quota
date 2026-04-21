@@ -57,10 +57,14 @@ describe("querySyntheticQuota", () => {
     const out = await querySyntheticQuota();
     expect(out).toEqual({
       success: true,
-      requestLimit: 100,
-      usedRequests: 25,
-      percentRemaining: 75,
-      resetTimeIso: "2026-01-20T18:12:03.000Z",
+      windows: {
+        fiveHour: {
+          requestLimit: 100,
+          usedRequests: 25,
+          percentRemaining: 75,
+          resetTimeIso: "2026-01-20T18:12:03.000Z",
+        },
+      },
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.synthetic.new/v2/quotas",
@@ -107,17 +111,25 @@ describe("querySyntheticQuota", () => {
 
     await expect(querySyntheticQuota()).resolves.toEqual({
       success: true,
-      requestLimit: 135,
-      usedRequests: 0,
-      percentRemaining: 100,
-      resetTimeIso: "2025-09-21T14:36:14.288Z",
+      windows: {
+        fiveHour: {
+          requestLimit: 135,
+          usedRequests: 0,
+          percentRemaining: 100,
+          resetTimeIso: "2025-09-21T14:36:14.288Z",
+        },
+      },
     });
     await expect(querySyntheticQuota()).resolves.toEqual({
       success: true,
-      requestLimit: 135,
-      usedRequests: 0,
-      percentRemaining: 100,
-      resetTimeIso: undefined,
+      windows: {
+        fiveHour: {
+          requestLimit: 135,
+          usedRequests: 0,
+          percentRemaining: 100,
+          resetTimeIso: undefined,
+        },
+      },
     });
   });
 
@@ -188,10 +200,14 @@ describe("querySyntheticQuota", () => {
     const out = await querySyntheticQuota();
     expect(out).toEqual({
       success: true,
-      requestLimit: 100,
-      usedRequests: 25,
-      percentRemaining: 75,
-      resetTimeIso: undefined,
+      windows: {
+        fiveHour: {
+          requestLimit: 100,
+          usedRequests: 25,
+          percentRemaining: 75,
+          resetTimeIso: undefined,
+        },
+      },
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.synthetic.new/v2/quotas",
@@ -246,10 +262,14 @@ describe("querySyntheticQuota", () => {
     const out = await querySyntheticQuota();
     expect(out).toEqual({
       success: true,
-      requestLimit: 100,
-      usedRequests: 125,
-      percentRemaining: 0,
-      resetTimeIso: undefined,
+      windows: {
+        fiveHour: {
+          requestLimit: 100,
+          usedRequests: 125,
+          percentRemaining: 0,
+          resetTimeIso: undefined,
+        },
+      },
     });
   });
 
