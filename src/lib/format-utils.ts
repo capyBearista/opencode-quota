@@ -7,6 +7,8 @@
  * - quota-command-format.ts (/quota command)
  */
 
+import type { PercentDisplayMode } from "./types.js";
+
 /**
  * Clamp a number to an integer within [min, max].
  */
@@ -48,6 +50,28 @@ export function bar(percentRemaining: number, width: number): string {
   const empty = width - filled;
   return "█".repeat(filled) + "░".repeat(empty);
 }
+
+/**
+ * Resolve the displayed percent for toast/sidebar percent rows without
+ * changing the underlying provider-normalized percentRemaining value.
+ */
+export function resolveDisplayedPercent(
+  percentRemaining: number,
+  mode: PercentDisplayMode = "remaining",
+): number {
+  const remaining = clampInt(percentRemaining, 0, 100);
+  return mode === "used" ? 100 - remaining : remaining;
+}
+
+export function formatDisplayedPercentLabel(
+  percentRemaining: number,
+  mode: PercentDisplayMode = "remaining",
+): string {
+  const displayedPercent = resolveDisplayedPercent(percentRemaining, mode);
+  return `${displayedPercent}% ${mode === "used" ? "used" : "left"}`;
+}
+
+export const DISPLAYED_PERCENT_LABEL_WIDTH = "100% used".length;
 
 /**
  * Format a token count with K/M suffix for compactness.

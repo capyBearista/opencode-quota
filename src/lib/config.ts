@@ -12,6 +12,7 @@ import type {
   CursorQuotaPlan,
   QuotaToastConfig,
   GoogleModelId,
+  PercentDisplayMode,
   PricingSnapshotSource,
 } from "./types.js";
 import { DEFAULT_CONFIG } from "./types.js";
@@ -80,6 +81,10 @@ function isValidPricingSnapshotAutoRefresh(value: unknown): value is number {
 
 function isValidFormatStyle(value: unknown): value is QuotaToastConfig["formatStyle"] {
   return value === "classic" || value === "grouped";
+}
+
+function isValidPercentDisplayMode(value: unknown): value is PercentDisplayMode {
+  return value === "remaining" || value === "used";
 }
 
 function normalizeOptionalString(value: unknown): string | undefined {
@@ -198,6 +203,9 @@ export async function loadConfig(
         : isValidFormatStyle((quotaToastConfig as { toastStyle?: unknown }).toastStyle)
           ? (quotaToastConfig as { toastStyle?: QuotaToastConfig["formatStyle"] }).toastStyle!
           : DEFAULT_CONFIG.formatStyle,
+      percentDisplayMode: isValidPercentDisplayMode(quotaToastConfig.percentDisplayMode)
+        ? quotaToastConfig.percentDisplayMode
+        : DEFAULT_CONFIG.percentDisplayMode,
       minIntervalMs:
         typeof quotaToastConfig.minIntervalMs === "number" && quotaToastConfig.minIntervalMs > 0
           ? quotaToastConfig.minIntervalMs

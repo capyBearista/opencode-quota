@@ -14,7 +14,7 @@ export const TUI_SIDEBAR_LAYOUT = {
 
 export function buildSidebarQuotaPanelLines(params: {
   data: QuotaRenderData;
-  config: Pick<QuotaToastConfig, "formatStyle">;
+  config: Pick<QuotaToastConfig, "formatStyle" | "percentDisplayMode">;
 }): string[] {
   const data = sanitizeQuotaRenderData(params.data);
 
@@ -24,6 +24,7 @@ export function buildSidebarQuotaPanelLines(params: {
     entries: data.entries,
     errors: data.errors,
     style: params.config.formatStyle,
+    percentDisplayMode: params.config.percentDisplayMode,
     sessionTokens: undefined,
   });
   const quotaLines = quotaBody ? quotaBody.split("\n") : [];

@@ -237,6 +237,92 @@ describe("/quota command behavior", () => {
     expect(message).toContain("OpenAI: Skipped (current model: claude-3.7-sonnet)");
   });
 
+  it("applies percentDisplayMode to idle-triggered toast output", async () => {
+    mocks.loadConfig.mockResolvedValueOnce({
+      ...DEFAULT_CONFIG,
+      enabled: true,
+      enabledProviders: ["copilot"],
+      showOnIdle: true,
+      showOnCompact: false,
+      showOnQuestion: false,
+      showSessionTokens: false,
+      percentDisplayMode: "used",
+      minIntervalMs: 60_000,
+    });
+
+    const provider = {
+      id: "copilot",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [
+          {
+            name: "Copilot",
+            percentRemaining: 81,
+            resetTimeIso: "2099-01-01T00:00:00.000Z",
+          },
+        ],
+        errors: [],
+      }),
+    };
+    mocks.getProviders.mockReturnValue([provider]);
+
+    const { QuotaToastPlugin } = await import("../src/plugin.js");
+    const client = createClient();
+    const hooks = await QuotaToastPlugin({ client } as any);
+
+    await hooks.event?.({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "session-idle-percent-display" },
+      },
+    } as any);
+
+    expect(client.tui.showToast).toHaveBeenCalledTimes(1);
+    const message = client.tui.showToast.mock.calls[0]?.[0]?.body?.message ?? "";
+    expect(message).toContain("19% used");
+    expect(message).not.toContain("81% left");
+  });
+
+  it("keeps /quota remaining-oriented when percentDisplayMode is used", async () => {
+    mocks.loadConfig.mockResolvedValueOnce({
+      ...DEFAULT_CONFIG,
+      enabled: true,
+      enabledProviders: ["openai"],
+      showOnQuestion: false,
+      showSessionTokens: false,
+      percentDisplayMode: "used",
+      minIntervalMs: 60_000,
+    });
+
+    const provider = {
+      id: "openai",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [{ name: "OpenAI Pro", percentRemaining: 81 }],
+        errors: [],
+      }),
+    };
+    mocks.getProviders.mockReturnValue([provider]);
+
+    const { QuotaToastPlugin } = await import("../src/plugin.js");
+    const client = createClient();
+    const hooks = await QuotaToastPlugin({ client } as any);
+
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "session-quota-percent-display-boundary",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
+
+    expect(client.session.prompt).toHaveBeenCalledTimes(1);
+    const injected = client.session.prompt.mock.calls[0]?.[0]?.body?.parts?.[0]?.text ?? "";
+    expect(injected).toContain("81% left");
+    expect(injected).not.toContain("19% left");
+  });
+
   it("rewrites default_agent only when one zero-width-normalized key matches", async () => {
     const { QuotaToastPlugin } = await import("../src/plugin.js");
     const hooks = await QuotaToastPlugin({ client: createClient() } as any);

@@ -353,7 +353,15 @@ describe("Claude CLI diagnostics", () => {
       "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback.",
     );
     expect(diagnostics.message).toContain(".claude/.credentials.json");
-    await expect(queryAnthropicQuota()).resolves.toBeNull();
+
+    const quota = await queryAnthropicQuota();
+    expect(quota?.success).toBe(false);
+    if (quota && !quota.success) {
+      expect(quota.error).toContain(
+        "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback.",
+      );
+      expect(quota.error).toContain(".claude/.credentials.json");
+    }
     expect(fetchWithTimeoutMock).not.toHaveBeenCalled();
     expect(readFileMock).toHaveBeenCalledTimes(1);
   });
@@ -386,7 +394,15 @@ describe("Claude CLI diagnostics", () => {
     );
     expect(diagnostics.message).toContain(".claude/.credentials.json");
     await expect(hasAnthropicCredentialsConfigured()).resolves.toBe(true);
-    await expect(queryAnthropicQuota()).resolves.toBeNull();
+
+    const quota = await queryAnthropicQuota();
+    expect(quota?.success).toBe(false);
+    if (quota && !quota.success) {
+      expect(quota.error).toContain(
+        "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback.",
+      );
+      expect(quota.error).toContain(".claude/.credentials.json");
+    }
   });
 
   it("sanitizes unexpected auth probe output", async () => {

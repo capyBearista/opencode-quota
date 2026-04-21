@@ -10,6 +10,7 @@
 export type GoogleModelId = "G3PRO" | "G3FLASH" | "CLAUDE" | "G3IMAGE";
 export type CursorQuotaPlan = "none" | "pro" | "pro-plus" | "ultra";
 export type PricingSnapshotSource = "auto" | "bundled" | "runtime";
+export type PercentDisplayMode = "remaining" | "used";
 
 export interface PricingSnapshotConfig {
   source: PricingSnapshotSource;
@@ -25,6 +26,8 @@ export interface QuotaToastConfig {
 
   /** Shared quota-row formatting style for popup toasts and the TUI sidebar. */
   formatStyle: "classic" | "grouped";
+  /** Shared percent meaning for popup toasts and the TUI sidebar. */
+  percentDisplayMode: PercentDisplayMode;
   minIntervalMs: number;
 
   /**
@@ -89,6 +92,7 @@ export const DEFAULT_CONFIG: QuotaToastConfig = {
 
   enableToast: true,
   formatStyle: "classic",
+  percentDisplayMode: "remaining",
   minIntervalMs: 300000, // 5 minutes
 
   debug: false,

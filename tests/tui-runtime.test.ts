@@ -192,6 +192,7 @@ describe("tui runtime helpers", () => {
                   quotaToast: {
                     enabled: true,
                     formatStyle: "grouped",
+                    percentDisplayMode: "used",
                     onlyCurrentModel: true,
                   },
                 },
@@ -217,6 +218,7 @@ describe("tui runtime helpers", () => {
       expect.objectContaining({
         config: expect.objectContaining({
           formatStyle: "grouped",
+          percentDisplayMode: "used",
           onlyCurrentModel: true,
         }),
         formatStyle: "grouped",
@@ -236,6 +238,7 @@ describe("tui runtime helpers", () => {
       },
       config: expect.objectContaining({
         formatStyle: "grouped",
+        percentDisplayMode: "used",
         onlyCurrentModel: true,
       }),
     });

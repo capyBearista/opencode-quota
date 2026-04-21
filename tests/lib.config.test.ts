@@ -119,6 +119,17 @@ describe("loadConfig", () => {
     expect(both.formatStyle).toBe("grouped");
   });
 
+  it("defaults percentDisplayMode to remaining and accepts valid overrides", async () => {
+    const defaults = await loadSdkConfig({});
+    expect(defaults.percentDisplayMode).toBe("remaining");
+
+    const explicit = await loadSdkConfig({ percentDisplayMode: "used" });
+    expect(explicit.percentDisplayMode).toBe("used");
+
+    const invalid = await loadSdkConfig({ percentDisplayMode: "backwards" });
+    expect(invalid.percentDisplayMode).toBe("remaining");
+  });
+
   it("defaults anthropicBinaryPath and trims explicit overrides", async () => {
     const defaults = await loadSdkConfig({});
     expect(defaults.anthropicBinaryPath).toBe("claude");

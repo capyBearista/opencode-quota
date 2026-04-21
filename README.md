@@ -68,6 +68,7 @@ The installer (append-only, preserves existing values) asks for:
 - **Quota UI**: `Toast`, `Sidebar`, `Toast + Sidebar`, or `None (manual /quota and /tokens_* only)`
 - **Provider mode**: `Auto-detect` or `Manual select`
 - **Layout style**: `classic` or `grouped`
+- **Percent display (toast/sidebar only)**: `remaining` or `used`
 - **Show session input/output tokens**: `Yes` or `No`
 
 All quota settings live in `opencode.json` or `opencode.jsonc`. `tui.json` or `tui.jsonc` is only for loading the sidebar plugin.
@@ -154,6 +155,21 @@ Keep the `tui.json` or `tui.jsonc` entry above and disable toasts in `opencode.j
 
 </details>
 
+<details>
+<summary><strong>Example: Show percent used instead of percent remaining in toasts and the sidebar</strong></summary>
+
+```jsonc
+{
+  "experimental": {
+    "quotaToast": {
+      "percentDisplayMode": "used",
+    },
+  },
+}
+```
+
+</details>
+
 ## Provider Setup At A Glance
 
 | Provider                | Auto setup                                           | Authentication                  | Quota                    |
@@ -191,7 +207,7 @@ If Claude lives at a custom path, set `experimental.quotaToast.anthropicBinaryPa
 
 When local CLI auth is present but local windows are missing, the plugin reads `~/.claude/.credentials.json`, extracts `claudeAiOauth.accessToken`, and queries Anthropic's OAuth usage endpoint. No manual Claude consumer token config is required.
 
-If you use Anthropic via API key in OpenCode, model usage still works normally. This plugin only shows Anthropic quota rows when local Claude auth is present and either the CLI or the Claude OAuth fallback can provide quota windows.
+If you use Anthropic via API key in OpenCode, model usage still works normally. This plugin only shows Anthropic quota rows when local Claude auth is present and either the CLI or the Claude OAuth fallback can provide quota windows. If Claude auth is present but both quota probes fail, `/quota`, toasts, and the sidebar surface a sanitized Anthropic error instead of silently skipping the provider.
 
 For behavior details and troubleshooting, see [Anthropic notes](#anthropic-notes).
 
@@ -323,7 +339,7 @@ Environment variables take precedence over the config file. Run `/quota_status` 
 
 The plugin probes the local Claude CLI with `anthropicBinaryPath --version` and `anthropicBinaryPath auth status --json` first. By default `anthropicBinaryPath` is `claude`, so standard installs work without extra config.
 
-If the Claude CLI exposes 5-hour and 7-day quota windows in local structured output, the plugin shows them directly. If the CLI only exposes auth state, the plugin falls back to `~/.claude/.credentials.json` and Anthropic's OAuth usage endpoint. Anthropic rows are skipped only when both the local CLI and the fallback cannot provide quota windows.
+If the Claude CLI exposes 5-hour and 7-day quota windows in local structured output, the plugin shows them directly. If the CLI only exposes auth state, the plugin falls back to `~/.claude/.credentials.json` and Anthropic's OAuth usage endpoint. When Claude is authenticated but both quota probes fail, `/quota`, toasts, and the sidebar surface a sanitized Anthropic error instead of silently skipping the provider.
 
 - Provider availability remains local-only: Anthropic is considered available when the local Claude CLI is installed and authenticated.
 - `experimental.quotaToast.anthropicBinaryPath` only changes CLI probing. It does not change the fallback credentials-file location.
@@ -652,10 +668,13 @@ When both are present, user/global config provides defaults. Project/workspace c
 | `enabledProviders`            | `"auto"`  | Auto-detect providers, or set an explicit provider list.                                                                                                                                                     |
 | `minIntervalMs`               | `300000`  | Minimum fetch interval between provider updates.                                                                                                                                                             |
 | `formatStyle`                 | `classic` | Shared quota-row style for popup toasts and the TUI sidebar: `classic` or `grouped`. Legacy `toastStyle` is still accepted on read for backward compatibility, but `formatStyle` is the canonical key.       |
+| `percentDisplayMode`          | `remaining` | Shared percent meaning for popup toasts and the TUI sidebar: `remaining` renders labels like `81% left`, while `used` renders labels like `19% used`; the bar fill always matches the shown meaning.        |
 | `onlyCurrentModel`            | `false`   | Filter quota rows to the current model/provider when that session selection can be resolved.                                                                                                                 |
 | `showSessionTokens`           | `true`    | Show the `Session input/output tokens` section in quota displays when session token data is available. Toasts and `/quota` show per-model input/output rows; the TUI sidebar shows a one-line total summary. |
 | `pricingSnapshot.source`      | `"auto"`  | Token pricing snapshot selection for `/tokens_*`: `auto`, `bundled`, or `runtime`.                                                                                                                           |
 | `pricingSnapshot.autoRefresh` | `7`       | Refresh stale local pricing data after this many days.                                                                                                                                                       |
+
+`percentDisplayMode` affects popup toasts and the TUI sidebar only. `/quota` keeps its existing remaining-oriented percentage output. Value-only rows such as spend or used/limit summaries are unchanged.
 
 ### Toast settings
 

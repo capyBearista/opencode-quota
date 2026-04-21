@@ -70,6 +70,7 @@ describe("loadConfig security precedence", () => {
             minIntervalMs: 600000,
             pricingSnapshot: { source: "bundled", autoRefresh: 30 },
             formatStyle: "classic",
+            percentDisplayMode: "remaining",
           },
         },
       }),
@@ -89,6 +90,7 @@ describe("loadConfig security precedence", () => {
             minIntervalMs: 1000,
             pricingSnapshot: { source: "runtime", autoRefresh: 1 },
             formatStyle: "grouped",
+            percentDisplayMode: "used",
             onlyCurrentModel: true,
           },
         },
@@ -105,6 +107,7 @@ describe("loadConfig security precedence", () => {
                 enabled: true,
                 enabledProviders: ["zai"],
                 formatStyle: "grouped",
+                percentDisplayMode: "remaining",
               },
             },
           },
@@ -120,6 +123,7 @@ describe("loadConfig security precedence", () => {
     expect(cfg.minIntervalMs).toBe(600000);
     expect(cfg.pricingSnapshot).toEqual({ source: "bundled", autoRefresh: 30 });
     expect(cfg.formatStyle).toBe("grouped");
+    expect(cfg.percentDisplayMode).toBe("used");
     expect(cfg.onlyCurrentModel).toBe(true);
   });
 
@@ -134,6 +138,7 @@ describe("loadConfig security precedence", () => {
           quotaToast: {
             enabledProviders: ["nano-gpt"],
             formatStyle: "grouped",
+            percentDisplayMode: "used",
             onlyCurrentModel: true,
           },
         },
@@ -146,12 +151,14 @@ describe("loadConfig security precedence", () => {
 
     expect(cfg.enabledProviders).toEqual(["nanogpt"]);
     expect(cfg.formatStyle).toBe("grouped");
+    expect(cfg.percentDisplayMode).toBe("used");
     expect(cfg.onlyCurrentModel).toBe(true);
     expect(meta.source).toBe("files");
     expect(meta.paths).toContain(join(altWorkspaceDir, "opencode.json") + " (experimental.quotaToast)");
     expect(meta.networkSettingSources).toEqual({
       enabledProviders: join(altWorkspaceDir, "opencode.json") + " (experimental.quotaToast)",
     });
+    expect(meta.networkSettingSources).not.toHaveProperty("percentDisplayMode");
   });
 
   it("merges pricingSnapshot per field so global and workspace sources can coexist", async () => {

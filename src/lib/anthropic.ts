@@ -895,7 +895,18 @@ export async function queryAnthropicQuota(
 ): Promise<AnthropicResult> {
   try {
     const diagnostics = await getAnthropicDiagnostics(options);
-    return diagnostics.quotaSupported ? diagnostics.quota ?? null : null;
+    if (diagnostics.quotaSupported) {
+      return diagnostics.quota ?? null;
+    }
+
+    if (diagnostics.authStatus === "authenticated" && diagnostics.message) {
+      return {
+        success: false,
+        error: diagnostics.message,
+      };
+    }
+
+    return null;
   } catch (err) {
     return {
       success: false,

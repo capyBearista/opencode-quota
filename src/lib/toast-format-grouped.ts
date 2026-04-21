@@ -5,9 +5,18 @@
  * Designed to feel like a status dashboard while still respecting OpenCode toast width.
  */
 
+import type { QuotaToastConfig } from "./types.js";
 import type { QuotaToastEntry, QuotaToastError, SessionTokensData } from "./entries.js";
 import { isValueEntry } from "./entries.js";
-import { bar, clampInt, formatResetCountdown, padLeft, padRight } from "./format-utils.js";
+import {
+  bar,
+  DISPLAYED_PERCENT_LABEL_WIDTH,
+  formatDisplayedPercentLabel,
+  formatResetCountdown,
+  padLeft,
+  padRight,
+  resolveDisplayedPercent,
+} from "./format-utils.js";
 import { formatGroupedHeader } from "./grouped-header-format.js";
 import { normalizeGroupedQuotaEntries } from "./grouped-entry-normalization.js";
 import { renderSessionTokensLines } from "./session-tokens-format.js";
@@ -20,6 +29,7 @@ export function formatQuotaRowsGrouped(params: {
   };
   entries?: QuotaToastEntry[];
   errors?: QuotaToastError[];
+  percentDisplayMode?: QuotaToastConfig["percentDisplayMode"];
   sessionTokens?: SessionTokensData;
 }): string {
   const layout = params.layout ?? { maxWidth: 50, narrowAt: 42, tinyAt: 32 };
@@ -28,7 +38,7 @@ export function formatQuotaRowsGrouped(params: {
   const isNarrow = !isTiny && maxWidth <= layout.narrowAt;
 
   const separator = "  ";
-  const percentCol = 4;
+  const percentCol = DISPLAYED_PERCENT_LABEL_WIDTH;
   const barWidth = Math.max(10, maxWidth - separator.length - percentCol);
   const timeCol = isTiny ? 6 : isNarrow ? 7 : 7;
 
@@ -98,6 +108,14 @@ export function formatQuotaRowsGrouped(params: {
       // Show reset countdown whenever quota is not fully available.
       // (i.e., any usage at all, or depleted)
       const timeStr = entry.percentRemaining < 100 ? formatResetCountdown(entry.resetTimeIso) : "";
+      const displayedPercent = resolveDisplayedPercent(
+        entry.percentRemaining,
+        params.percentDisplayMode,
+      );
+      const percentLabel = formatDisplayedPercentLabel(
+        entry.percentRemaining,
+        params.percentDisplayMode,
+      );
 
       if (isTiny) {
         // Tiny: "label  time  XX%" (ignore bar)
@@ -105,7 +123,7 @@ export function formatQuotaRowsGrouped(params: {
         const line = [
           padRight(label, tinyNameCol),
           padLeft(timeStr, timeCol),
-          padLeft(`${clampInt(entry.percentRemaining, 0, 100)}%`, percentCol),
+          padLeft(percentLabel, percentCol),
         ].join(separator);
         lines.push(line.slice(0, maxWidth));
         continue;
@@ -120,8 +138,8 @@ export function formatQuotaRowsGrouped(params: {
       );
 
       // Line 2: bar + percent
-      const barCell = bar(entry.percentRemaining, barWidth);
-      const percentCell = padLeft(`${clampInt(entry.percentRemaining, 0, 100)}%`, percentCol);
+      const barCell = bar(displayedPercent, barWidth);
+      const percentCell = padLeft(percentLabel, percentCol);
       lines.push([barCell, percentCell].join(separator));
     }
   }

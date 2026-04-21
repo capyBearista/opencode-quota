@@ -21,7 +21,7 @@ describe("formatQuotaRows", () => {
     });
 
     expect(out).toContain("Copilot");
-    expect(out).toContain("75%");
+    expect(out).toContain("75% left");
   });
 
   it("uses tiny layout when maxWidth is small", () => {
@@ -40,6 +40,27 @@ describe("formatQuotaRows", () => {
     // Tiny layout is single-line per entry (no bar characters)
     expect(out).toContain("Copilot");
     expect(out).not.toContain("█");
+  });
+
+  it("renders classic percent rows as used when percentDisplayMode is used", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      layout: { maxWidth: 24, narrowAt: 16, tinyAt: 10 },
+      percentDisplayMode: "used",
+      entries: [
+        {
+          name: "Copilot",
+          percentRemaining: 81,
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const lines = out.split("\n");
+    const barLine = lines[1] ?? "";
+    expect(barLine).toContain("19% used");
+    expect(barLine).not.toContain("81% left");
+    expect((barLine.match(/█/g) ?? [])).toHaveLength(2);
   });
 
   it("shows reset countdown when quota is partially used", () => {
@@ -124,6 +145,31 @@ describe("formatQuotaRows", () => {
     expect(out.indexOf("5h:")).toBeLessThan(out.indexOf("Weekly:"));
   });
 
+  it("renders grouped percent rows as used when percentDisplayMode is used", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "grouped",
+      layout: { maxWidth: 24, narrowAt: 16, tinyAt: 10 },
+      percentDisplayMode: "used",
+      entries: [
+        {
+          name: "OpenAI Weekly",
+          group: "OpenAI (Pro)",
+          label: "Weekly:",
+          percentRemaining: 81,
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const barLine = out
+      .split("\n")
+      .find((line) => line.includes("%"));
+    expect(barLine).toContain("19% used");
+    expect(barLine).not.toContain("81% left");
+    expect((barLine?.match(/█/g) ?? [])).toHaveLength(2);
+  });
+
   it("locks rendered grouped toast ordering for Qwen and OpenAI provider groups", () => {
     const out = formatQuotaRows({
       version: "1.0.0",
@@ -185,5 +231,34 @@ describe("formatQuotaRows", () => {
     expect(out).toContain("→ [Google Antigravity] (acct)");
     expect(out).toContain("Claude:");
     expect(out).not.toContain("→ [Claude] (acct)");
+  });
+
+  it("does not change value-only rows when percentDisplayMode changes", () => {
+    const params = {
+      version: "1.0.0",
+      layout: { maxWidth: 40, narrowAt: 32, tinyAt: 20 },
+      entries: [
+        {
+          name: "Cursor API",
+          kind: "value" as const,
+          value: "$2.40 / $20.00",
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+
+    const remaining = formatQuotaRows({
+      ...params,
+      percentDisplayMode: "remaining",
+    });
+    const used = formatQuotaRows({
+      ...params,
+      percentDisplayMode: "used",
+    });
+
+    expect(used).toBe(remaining);
+    expect(used).toContain("$2.40 / $20.00");
+    expect(used).not.toContain("% left");
+    expect(used).not.toContain("% used");
   });
 });

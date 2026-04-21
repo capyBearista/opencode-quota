@@ -34,6 +34,7 @@ export interface InitInstallerSelections {
   providerMode: InitProviderMode;
   manualProviders: string[];
   formatStyle: QuotaToastConfig["formatStyle"];
+  percentDisplayMode: QuotaToastConfig["percentDisplayMode"];
   showSessionTokens: boolean;
 }
 
@@ -129,6 +130,10 @@ function getUiLabel(mode: InitQuotaUi): string {
 
 function getProviderModeLabel(mode: InitProviderMode): string {
   return mode === "manual" ? "Manual" : "Auto-detect";
+}
+
+function getPercentDisplayModeLabel(mode: QuotaToastConfig["percentDisplayMode"]): string {
+  return mode === "used" ? "Used" : "Remaining";
 }
 
 function getDesiredEnableToast(mode: InitQuotaUi): boolean {
@@ -430,6 +435,13 @@ async function planOpencodeEdit(params: {
     "experimental.quotaToast.formatStyle",
     edit,
   );
+  addSettingIfMissing(
+    quotaToast,
+    "percentDisplayMode",
+    params.selections.percentDisplayMode,
+    "experimental.quotaToast.percentDisplayMode",
+    edit,
+  );
 
   if (edit.changed) {
     edit.nextData = root;
@@ -487,6 +499,7 @@ function buildPlanSummary(plan: InitInstallerPlan): string[] {
     `Quota UI: ${getUiLabel(plan.selections.quotaUi)}`,
     `Provider mode: ${getProviderModeLabel(plan.selections.providerMode)}`,
     `Layout style: ${plan.selections.formatStyle}`,
+    `Percent display (toast/sidebar): ${getPercentDisplayModeLabel(plan.selections.percentDisplayMode)}`,
     `Show session tokens: ${plan.selections.showSessionTokens ? "Yes" : "No"}`,
   ];
 
@@ -681,6 +694,15 @@ async function promptForSelections(
   });
   if (prompts.isCancel(formatStyle)) return null;
 
+  const percentDisplayMode = await prompts.select({
+    message: "Percent display (toast/sidebar)",
+    options: [
+      { label: "Remaining", value: "remaining" },
+      { label: "Used", value: "used" },
+    ],
+  });
+  if (prompts.isCancel(percentDisplayMode)) return null;
+
   const showSessionTokens = await prompts.select({
     message: "Show session input/output tokens",
     options: [
@@ -696,6 +718,7 @@ async function promptForSelections(
     providerMode: providerMode as InitProviderMode,
     manualProviders,
     formatStyle: formatStyle as QuotaToastConfig["formatStyle"],
+    percentDisplayMode: percentDisplayMode as QuotaToastConfig["percentDisplayMode"],
     showSessionTokens: showSessionTokens === "yes",
   };
 }

@@ -2,9 +2,18 @@
  * Formatting helpers for quota toast output
  */
 
+import type { QuotaToastConfig } from "./types.js";
 import type { QuotaToastEntry, QuotaToastError, SessionTokensData } from "./entries.js";
 import { isValueEntry } from "./entries.js";
-import { bar, clampInt, formatResetCountdown, padLeft, padRight } from "./format-utils.js";
+import {
+  bar,
+  DISPLAYED_PERCENT_LABEL_WIDTH,
+  formatDisplayedPercentLabel,
+  formatResetCountdown,
+  padLeft,
+  padRight,
+  resolveDisplayedPercent,
+} from "./format-utils.js";
 import { formatQuotaRowsGrouped } from "./toast-format-grouped.js";
 import { renderSessionTokensLines } from "./session-tokens-format.js";
 
@@ -18,6 +27,7 @@ export function formatQuotaRows(params: {
   entries?: QuotaToastEntry[];
   errors?: QuotaToastError[];
   style?: "classic" | "grouped";
+  percentDisplayMode?: QuotaToastConfig["percentDisplayMode"];
   sessionTokens?: SessionTokensData;
 }): string {
   if (params.style === "grouped") {
@@ -25,6 +35,7 @@ export function formatQuotaRows(params: {
       layout: params.layout,
       entries: params.entries,
       errors: params.errors,
+      percentDisplayMode: params.percentDisplayMode,
       sessionTokens: params.sessionTokens,
     });
   }
@@ -40,7 +51,7 @@ export function formatQuotaRows(params: {
   const isNarrow = !isTiny && maxWidth <= layout.narrowAt;
 
   const separator = "  ";
-  const percentCol = 4; // "100%"
+  const percentCol = DISPLAYED_PERCENT_LABEL_WIDTH; // "100% used"
 
   const timeCol = isTiny ? 6 : isNarrow ? 7 : 7;
 
@@ -52,6 +63,9 @@ export function formatQuotaRows(params: {
   const lines: string[] = [];
 
   const addPercentEntry = (name: string, resetIso: string | undefined, remaining: number) => {
+    const displayedPercent = resolveDisplayedPercent(remaining, params.percentDisplayMode);
+    const percentLabel = formatDisplayedPercentLabel(remaining, params.percentDisplayMode);
+
     // Show reset countdown whenever quota is not fully available.
     // (i.e., any usage at all, or depleted)
     const timeStr = remaining < 100 ? formatResetCountdown(resetIso, { missing: "-" }) : "";
@@ -62,7 +76,7 @@ export function formatQuotaRows(params: {
       const line = [
         padRight(name, tinyNameCol),
         padLeft(timeStr, timeCol),
-        padLeft(`${clampInt(remaining, 0, 100)}%`, percentCol),
+        padLeft(percentLabel, percentCol),
       ].join(separator);
       lines.push(line.slice(0, maxWidth));
       return;
@@ -76,8 +90,8 @@ export function formatQuotaRows(params: {
     lines.push(timeLine.slice(0, barWidth));
 
     // Line 2: bar + percent (percent extends beyond bar width)
-    const barCell = bar(remaining, barWidth);
-    const percentCell = padLeft(`${clampInt(remaining, 0, 100)}%`, percentCol);
+    const barCell = bar(displayedPercent, barWidth);
+    const percentCell = padLeft(percentLabel, percentCol);
     const barLine = [barCell, percentCell].join(separator);
     lines.push(barLine);
   };

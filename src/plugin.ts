@@ -796,6 +796,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         entries: data.entries,
         errors: data.errors,
         style: config.formatStyle,
+        percentDisplayMode: config.percentDisplayMode,
         sessionTokens: data.sessionTokens,
       });
 

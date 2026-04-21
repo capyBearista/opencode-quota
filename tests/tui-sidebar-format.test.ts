@@ -13,6 +13,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {
         formatStyle: "grouped",
+        percentDisplayMode: "remaining",
       },
       data: {
         entries: [
@@ -75,6 +76,7 @@ describe("buildSidebarQuotaPanelLines", () => {
       entries: data.entries,
       errors: data.errors,
       style: "classic",
+      percentDisplayMode: "remaining",
       sessionTokens: data.sessionTokens,
     }).split("\n");
 
@@ -83,6 +85,7 @@ describe("buildSidebarQuotaPanelLines", () => {
         data,
         config: {
           formatStyle: "classic",
+          percentDisplayMode: "remaining",
         },
       }),
     ).toEqual(expected);
@@ -109,6 +112,7 @@ describe("buildSidebarQuotaPanelLines", () => {
       entries: data.entries,
       errors: data.errors,
       style: "grouped",
+      percentDisplayMode: "remaining",
       sessionTokens: data.sessionTokens,
     }).split("\n");
 
@@ -116,6 +120,7 @@ describe("buildSidebarQuotaPanelLines", () => {
       data,
       config: {
         formatStyle: "grouped",
+        percentDisplayMode: "remaining",
       },
     });
 
@@ -129,6 +134,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {
         formatStyle: "grouped",
+        percentDisplayMode: "remaining",
       },
       data: {
         entries: [
@@ -157,10 +163,36 @@ describe("buildSidebarQuotaPanelLines", () => {
     );
   });
 
+  it("renders used percentages and matching bar fill in the sidebar", () => {
+    const lines = buildSidebarQuotaPanelLines({
+      config: {
+        formatStyle: "classic",
+        percentDisplayMode: "used",
+      },
+      data: {
+        entries: [
+          {
+            name: "Copilot",
+            percentRemaining: 81,
+            resetTimeIso: "2099-01-01T00:00:00.000Z",
+          },
+        ],
+        errors: [],
+        sessionTokens: undefined,
+      },
+    });
+
+    const barLine = lines[1] ?? "";
+    expect(barLine).toContain("19% used");
+    expect(barLine).not.toContain("81% left");
+    expect((barLine.match(/█/g) ?? [])).toHaveLength(5);
+  });
+
   it("renders sidebar session tokens as a standalone one-line summary", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {
         formatStyle: "classic",
+        percentDisplayMode: "remaining",
       },
       data: {
         entries: [],
@@ -181,5 +213,38 @@ describe("buildSidebarQuotaPanelLines", () => {
 
     expect(lines.every((line) => line.length <= TUI_SIDEBAR_MAX_WIDTH)).toBe(true);
     expect(lines).toEqual([SESSION_TOKEN_SECTION_HEADING, "  372 in  41 out"]);
+  });
+
+  it("keeps value-only rows unchanged when percentDisplayMode is used", () => {
+    const data = {
+      entries: [
+        {
+          name: "Cursor API",
+          kind: "value" as const,
+          value: "$2.40 / $20.00",
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+
+    const remaining = buildSidebarQuotaPanelLines({
+      data,
+      config: {
+        formatStyle: "classic",
+        percentDisplayMode: "remaining",
+      },
+    });
+    const used = buildSidebarQuotaPanelLines({
+      data,
+      config: {
+        formatStyle: "classic",
+        percentDisplayMode: "used",
+      },
+    });
+
+    expect(used).toEqual(remaining);
+    expect(used.join("\n")).toContain("$2.40 / $20.00");
   });
 });
