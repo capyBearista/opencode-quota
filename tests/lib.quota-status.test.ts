@@ -455,6 +455,19 @@ describe("buildQuotaStatusReport", () => {
     } as any);
   }
 
+  function getSection(report: string, title: string): string {
+    const start = report.indexOf(`${title}\n`);
+    expect(start).toBeGreaterThanOrEqual(0);
+
+    const rest = report.slice(start + title.length + 1);
+    const nextSectionOffset = rest.search(/\n[a-z0-9_]+:\n/u);
+    if (nextSectionOffset === -1) {
+      return report.slice(start);
+    }
+
+    return report.slice(start, start + title.length + 1 + nextSectionOffset);
+  }
+
   it("distinguishes organization billing access from computable remaining quota totals", async () => {
     const { buildQuotaStatusReport } = await import("../src/lib/quota-status.js");
 
@@ -767,6 +780,160 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("- live_probe: no_data");
   });
 
+  it("renders compact live probes in mapped and probe-only provider sections", async () => {
+    const { buildQuotaStatusReport } = await import("../src/lib/quota-status.js");
+
+    const report = await buildQuotaStatusReport({
+      configSource: "test",
+      configPaths: [],
+      enabledProviders: [
+        "openai",
+        "qwen-code",
+        "alibaba-coding-plan",
+        "minimax-coding-plan",
+        "copilot",
+        "google-antigravity",
+        "chutes",
+      ],
+      alibabaCodingPlanTier: "lite",
+      cursorPlan: "none",
+      pricingSnapshotSource: "auto",
+      onlyCurrentModel: false,
+      providerAvailability: [
+        { id: "openai", enabled: true, available: true },
+        { id: "qwen-code", enabled: true, available: true },
+        { id: "alibaba-coding-plan", enabled: true, available: true },
+        { id: "minimax-coding-plan", enabled: true, available: true },
+        { id: "copilot", enabled: true, available: true },
+        { id: "google-antigravity", enabled: true, available: true },
+        { id: "chutes", enabled: true, available: true },
+      ],
+      providerLiveProbes: [
+        {
+          providerId: "openai",
+          result: {
+            attempted: true,
+            entries: [
+              {
+                label: "Pro",
+                name: "OpenAI Pro",
+                percentRemaining: 91,
+                right: "91/100",
+                resetTimeIso: "2026-04-22T00:00:00.000Z",
+              },
+            ],
+            errors: [],
+          },
+        },
+        {
+          providerId: "qwen-code",
+          result: {
+            attempted: true,
+            entries: [
+              {
+                label: "Daily",
+                name: "Qwen Code Daily",
+                percentRemaining: 88,
+                right: "120/1000",
+                resetTimeIso: "2026-04-22T00:00:00.000Z",
+              },
+            ],
+            errors: [],
+          },
+        },
+        {
+          providerId: "alibaba-coding-plan",
+          result: {
+            attempted: false,
+            entries: [],
+            errors: [],
+          },
+        },
+        {
+          providerId: "minimax-coding-plan",
+          result: {
+            attempted: true,
+            entries: [
+              {
+                label: "Weekly",
+                name: "MiniMax Weekly",
+                percentRemaining: 63,
+                right: "1600/45000",
+                resetTimeIso: "2026-04-28T00:00:00.000Z",
+              },
+            ],
+            errors: [],
+          },
+        },
+        {
+          providerId: "copilot",
+          result: {
+            attempted: true,
+            entries: [],
+            errors: [{ label: "Copilot", message: "Billing endpoint unavailable" }],
+          },
+        },
+        {
+          providerId: "google-antigravity",
+          result: {
+            attempted: false,
+            entries: [],
+            errors: [],
+          },
+        },
+        {
+          providerId: "chutes",
+          result: {
+            attempted: true,
+            entries: [],
+            errors: [
+              {
+                label: "Chutes",
+                message: "probe \u001b[31mfailed\u0007\n\twith noise",
+              },
+            ],
+          },
+        },
+      ],
+      generatedAtMs: Date.UTC(2026, 2, 12, 12, 45, 0),
+    });
+
+    const openaiSection = getSection(report, "openai:");
+    expect(openaiSection).toContain("- live_probe: success");
+    expect(openaiSection).toContain(
+      "- live_entry_1: Pro 91/100 percent_remaining=91 reset_at=2026-04-22T00:00:00.000Z",
+    );
+
+    const qwenSection = getSection(report, "qwen_code:");
+    expect(qwenSection).toContain("- live_probe: success");
+    expect(qwenSection).toContain(
+      "- live_entry_1: Daily 120/1000 percent_remaining=88 reset_at=2026-04-22T00:00:00.000Z",
+    );
+
+    const alibabaSection = getSection(report, "alibaba_coding_plan:");
+    expect(alibabaSection).toContain("- live_probe: no_data");
+
+    const minimaxSection = getSection(report, "minimax:");
+    expect(minimaxSection).toContain("- auth_state: none");
+    expect(minimaxSection).toContain("- live_probe: success");
+    expect(minimaxSection).toContain(
+      "- live_entry_1: Weekly 1600/45000 percent_remaining=63 reset_at=2026-04-28T00:00:00.000Z",
+    );
+
+    const copilotSection = getSection(report, "copilot_quota_auth:");
+    expect(copilotSection).toContain("- live_probe: error");
+    expect(copilotSection).toContain("- live_error_1: Billing endpoint unavailable");
+
+    const googleSection = getSection(report, "google_antigravity:");
+    expect(googleSection).toContain("- live_probe: no_data");
+
+    const chutesSection = getSection(report, "chutes:");
+    expect(chutesSection).toContain("- live_probe: error");
+    expect(chutesSection).toContain("- live_error_1: probe failed with noise");
+    expect(chutesSection).not.toContain("\u001b[31m");
+    expect(chutesSection).not.toContain("\u0007");
+  });
+
   it("sanitizes and truncates Synthetic live probe errors", async () => {
     syntheticMocks.getSyntheticKeyDiagnostics.mockResolvedValueOnce({
       configured: true,
@@ -801,6 +968,42 @@ describe("buildQuotaStatusReport", () => {
     expect(errorLine).not.toContain("\n");
     expect(errorLine).not.toContain("\t");
     expect(errorLine!.length).toBeLessThanOrEqual(140);
+  });
+
+  it("strips OSC and APC terminal escape sequences from Synthetic live probe errors", async () => {
+    syntheticMocks.getSyntheticKeyDiagnostics.mockResolvedValueOnce({
+      configured: true,
+      source: "env:SYNTHETIC_API_KEY",
+      checkedPaths: ["env:SYNTHETIC_API_KEY"],
+    });
+
+    const report = await buildSyntheticStatusReport({
+      providerLiveProbes: [
+        {
+          providerId: "synthetic",
+          result: {
+            attempted: true,
+            entries: [],
+            errors: [
+              {
+                label: "Synthetic",
+                message:
+                  "prefix \u001b]2;window-title\u001b\\ shown \u001b]8;;https://example.test\u0007click\u001b]8;;\u0007 \u001b_hidden\u001b\\ suffix",
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const errorLine = report.split("\n").find((line) => line.startsWith("- live_error_1: "));
+    expect(errorLine).toBeDefined();
+    expect(errorLine).toContain("prefix shown click suffix");
+    expect(errorLine).not.toContain("\u001b]");
+    expect(errorLine).not.toContain("\u001b\\");
+    expect(errorLine).not.toContain("window-title");
+    expect(errorLine).not.toContain("https://example.test");
+    expect(errorLine).not.toContain("hidden");
   });
 
   it("reports NanoGPT live subscription and balance diagnostics when configured", async () => {

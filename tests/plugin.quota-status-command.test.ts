@@ -1,0 +1,229 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { COMMAND_HANDLED_SENTINEL } from "../src/lib/command-handled.js";
+import { DEFAULT_CONFIG } from "../src/lib/types.js";
+import {
+  createPluginTestClient as createClient,
+  seedDefaultPluginBootstrapMocks,
+} from "./helpers/plugin-test-harness.js";
+
+const mocks = vi.hoisted(() => ({
+  loadConfig: vi.fn(),
+  getProviders: vi.fn(),
+  maybeRefreshPricingSnapshot: vi.fn(),
+  getPricingSnapshotMeta: vi.fn(),
+  getPricingSnapshotSource: vi.fn(),
+  getRuntimePricingRefreshStatePath: vi.fn(),
+  getRuntimePricingSnapshotPath: vi.fn(),
+  setPricingSnapshotAutoRefresh: vi.fn(),
+  setPricingSnapshotSelection: vi.fn(),
+  resolveQwenLocalPlanCached: vi.fn(),
+  resolveAlibabaCodingPlanAuthCached: vi.fn(),
+  fetchSessionTokensForDisplay: vi.fn(),
+  collectQuotaStatusLiveProbes: vi.fn(),
+  buildQuotaStatusReport: vi.fn(),
+  inspectTuiConfig: vi.fn(),
+  refreshGoogleTokensForAllAccounts: vi.fn(),
+}));
+
+vi.mock("@opencode-ai/plugin", () => {
+  const makeChain = () => {
+    const chain: any = {};
+    chain.optional = () => chain;
+    chain.describe = () => chain;
+    chain.int = () => chain;
+    chain.min = () => chain;
+    return chain;
+  };
+
+  const toolFn = ((definition: unknown) => definition) as any;
+  toolFn.schema = {
+    boolean: () => makeChain(),
+    number: () => makeChain(),
+  };
+
+  return { tool: toolFn };
+});
+
+vi.mock("../src/lib/config.js", () => ({
+  loadConfig: mocks.loadConfig,
+  createLoadConfigMeta: () => ({ source: "test", paths: [], networkSettingSources: {} }),
+}));
+
+vi.mock("../src/providers/registry.js", () => ({
+  getProviders: mocks.getProviders,
+}));
+
+vi.mock("../src/lib/modelsdev-pricing.js", () => ({
+  getPricingSnapshotMeta: mocks.getPricingSnapshotMeta,
+  getPricingSnapshotSource: mocks.getPricingSnapshotSource,
+  getRuntimePricingRefreshStatePath: mocks.getRuntimePricingRefreshStatePath,
+  getRuntimePricingSnapshotPath: mocks.getRuntimePricingSnapshotPath,
+  maybeRefreshPricingSnapshot: mocks.maybeRefreshPricingSnapshot,
+  setPricingSnapshotAutoRefresh: mocks.setPricingSnapshotAutoRefresh,
+  setPricingSnapshotSelection: mocks.setPricingSnapshotSelection,
+}));
+
+vi.mock("../src/lib/session-tokens.js", () => ({
+  fetchSessionTokensForDisplay: mocks.fetchSessionTokensForDisplay,
+}));
+
+vi.mock("../src/lib/qwen-auth.js", () => ({
+  isQwenCodeModelId: (model?: string) =>
+    typeof model === "string" && model.toLowerCase().startsWith("qwen-code/"),
+  resolveQwenLocalPlanCached: mocks.resolveQwenLocalPlanCached,
+}));
+
+vi.mock("../src/lib/alibaba-auth.js", () => ({
+  DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS: 5000,
+  isAlibabaModelId: (model?: string) =>
+    typeof model === "string" &&
+    (model.toLowerCase().startsWith("alibaba/") || model.toLowerCase().startsWith("alibaba-cn/")),
+  resolveAlibabaCodingPlanAuthCached: mocks.resolveAlibabaCodingPlanAuthCached,
+}));
+
+vi.mock("../src/lib/quota-render-data.js", () => ({
+  collectQuotaRenderData: vi.fn(),
+  collectQuotaStatusLiveProbes: mocks.collectQuotaStatusLiveProbes,
+  matchesQuotaProviderCurrentSelection: vi.fn(() => true),
+  resolveQuotaRenderSelection: vi.fn(),
+}));
+
+vi.mock("../src/lib/quota-status.js", () => ({
+  buildQuotaStatusReport: mocks.buildQuotaStatusReport,
+}));
+
+vi.mock("../src/lib/tui-config-diagnostics.js", () => ({
+  inspectTuiConfig: mocks.inspectTuiConfig,
+}));
+
+vi.mock("../src/lib/google.js", () => ({
+  refreshGoogleTokensForAllAccounts: mocks.refreshGoogleTokensForAllAccounts,
+}));
+
+describe("/quota_status command behavior", () => {
+  beforeEach(() => {
+    seedDefaultPluginBootstrapMocks(mocks, {
+      configOverrides: {
+        ...DEFAULT_CONFIG,
+        enabled: true,
+        enabledProviders: ["openai", "synthetic", "copilot", "cursor"],
+        showOnQuestion: false,
+        showSessionTokens: false,
+        minIntervalMs: 60_000,
+      },
+      resetModules: true,
+      resetPluginState: true,
+    });
+    mocks.resolveQwenLocalPlanCached.mockResolvedValue({ state: "none" });
+    mocks.resolveAlibabaCodingPlanAuthCached.mockResolvedValue({ state: "none" });
+    mocks.inspectTuiConfig.mockResolvedValue({
+      configured: false,
+      inferredSelectedPath: null,
+      presentPaths: [],
+      candidatePaths: [],
+      quotaPluginConfigured: false,
+      quotaPluginConfigPaths: [],
+    });
+    mocks.refreshGoogleTokensForAllAccounts.mockResolvedValue({ attempted: false });
+    mocks.collectQuotaStatusLiveProbes.mockResolvedValue([
+      {
+        providerId: "openai",
+        result: { attempted: true, entries: [{ name: "OpenAI", percentRemaining: 90 }], errors: [] },
+      },
+      {
+        providerId: "synthetic",
+        result: { attempted: false, entries: [], errors: [] },
+      },
+      {
+        providerId: "copilot",
+        result: {
+          attempted: true,
+          entries: [],
+          errors: [{ label: "Copilot", message: "Billing endpoint unavailable" }],
+        },
+      },
+    ]);
+    mocks.buildQuotaStatusReport.mockResolvedValue("Injected quota status");
+  });
+
+  it("probes every enabled and available provider with fresh classic status probes and still throws the handled sentinel", async () => {
+    const openai = {
+      id: "openai",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn(),
+    };
+    const synthetic = {
+      id: "synthetic",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn(),
+    };
+    const copilot = {
+      id: "copilot",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn(),
+    };
+    const cursor = {
+      id: "cursor",
+      isAvailable: vi.fn().mockResolvedValue(false),
+      fetch: vi.fn(),
+    };
+    mocks.getProviders.mockReturnValue([openai, synthetic, copilot, cursor]);
+
+    const { QuotaToastPlugin } = await import("../src/plugin.js");
+    const client = createClient({ modelID: "openai/gpt-5", providerID: "openai" });
+    const hooks = await QuotaToastPlugin({ client } as any);
+
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota_status",
+        sessionID: "session-status",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
+
+    expect(mocks.collectQuotaStatusLiveProbes).toHaveBeenCalledTimes(1);
+    expect(mocks.collectQuotaStatusLiveProbes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        client,
+        config: expect.objectContaining({ enabledProviders: ["openai", "synthetic", "copilot", "cursor"] }),
+        formatStyle: "classic",
+        providers: [openai, synthetic, copilot],
+      }),
+    );
+    expect(mocks.buildQuotaStatusReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerLiveProbes: [
+          {
+            providerId: "openai",
+            result: { attempted: true, entries: [{ name: "OpenAI", percentRemaining: 90 }], errors: [] },
+          },
+          {
+            providerId: "synthetic",
+            result: { attempted: false, entries: [], errors: [] },
+          },
+          {
+            providerId: "copilot",
+            result: {
+              attempted: true,
+              entries: [],
+              errors: [{ label: "Copilot", message: "Billing endpoint unavailable" }],
+            },
+          },
+        ],
+      }),
+    );
+    expect(client.session.prompt).toHaveBeenCalledTimes(1);
+    expect(client.session.prompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { id: "session-status" },
+        body: expect.objectContaining({
+          parts: [
+            expect.objectContaining({
+              text: "Injected quota status",
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+});

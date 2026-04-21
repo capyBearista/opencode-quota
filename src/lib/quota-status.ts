@@ -196,20 +196,6 @@ function createLinesSection(id: string, title: string, lines: string[]): ReportS
   };
 }
 
-function buildBasicApiKeySection(params: {
-  id: string;
-  section: string;
-  label: string;
-  diagnostics: BasicApiKeyDiagnostics;
-}): ReportSection {
-  return createKvSection(params.id, params.section, [
-    {
-      key: params.label,
-      value: formatInlineApiKeyDiagnosticsValue(params.diagnostics),
-    },
-  ]);
-}
-
 function normalizeLiveProbeText(value: string): string {
   return sanitizeSingleLineDisplayText(value).replace(/:+$/u, "").toLowerCase();
 }
@@ -231,6 +217,30 @@ function findProviderLiveProbe(
   probes?: ProviderLiveProbe[],
 ): ProviderLiveProbe | undefined {
   return probes?.find((probe) => probe.providerId === providerId);
+}
+
+function appendProviderCompactLiveProbeRows(
+  rows: ReportKvRow[],
+  providerId: string,
+  probes?: ProviderLiveProbe[],
+): void {
+  appendCompactLiveProbeRows(rows, providerId, findProviderLiveProbe(providerId, probes));
+}
+
+function createCompactLiveProbeOnlySection(params: {
+  id: string;
+  title: string;
+  providerId: string;
+  probes?: ProviderLiveProbe[];
+}): ReportSection | null {
+  const probe = findProviderLiveProbe(params.providerId, params.probes);
+  if (!probe) {
+    return null;
+  }
+
+  const rows: ReportKvRow[] = [];
+  appendCompactLiveProbeRows(rows, params.providerId, probe);
+  return createKvSection(params.id, params.title, rows);
 }
 
 function getCompactLiveProbeDescriptor(providerId: string, entry: QuotaToastEntry): string | undefined {
@@ -707,6 +717,7 @@ export async function buildQuotaStatusReport(params: {
         ? sanitizeDisplayText(openaiAuth.accountId)
         : "(none)",
   });
+  appendProviderCompactLiveProbeRows(openaiRows, "openai", params.providerLiveProbes);
   sections.push(createKvSection("openai", "openai:", openaiRows));
 
   // === anthropic ===
@@ -755,9 +766,10 @@ export async function buildQuotaStatusReport(params: {
       key: "message",
       value: `failed to probe Claude CLI${
         err ? `: ${sanitizeDisplayText(err instanceof Error ? err.message : String(err))}` : ""
-      }`,
+      }`, 
     });
   }
+  appendProviderCompactLiveProbeRows(anthropicRows, "anthropic", params.providerLiveProbes);
   sections.push(createKvSection("anthropic", "anthropic:", anthropicRows));
 
   // === cursor ===
@@ -865,7 +877,28 @@ export async function buildQuotaStatusReport(params: {
   } else if (alibabaCodingPlanAuth.state === "invalid") {
     cursorRows.push({ key: "alibaba coding plan error", value: alibabaCodingPlanAuth.error });
   }
+  appendProviderCompactLiveProbeRows(cursorRows, "cursor", params.providerLiveProbes);
   sections.push(createKvSection("cursor", "cursor:", cursorRows));
+
+  const qwenCodeLiveProbeSection = createCompactLiveProbeOnlySection({
+    id: "qwen_code",
+    title: "qwen_code:",
+    providerId: "qwen-code",
+    probes: params.providerLiveProbes,
+  });
+  if (qwenCodeLiveProbeSection) {
+    sections.push(qwenCodeLiveProbeSection);
+  }
+
+  const alibabaCodingPlanLiveProbeSection = createCompactLiveProbeOnlySection({
+    id: "alibaba_coding_plan",
+    title: "alibaba_coding_plan:",
+    providerId: "alibaba-coding-plan",
+    probes: params.providerLiveProbes,
+  });
+  if (alibabaCodingPlanLiveProbeSection) {
+    sections.push(alibabaCodingPlanLiveProbeSection);
+  }
 
   // === minimax ===
   const minimaxRows: ReportKvRow[] = [];
@@ -917,6 +950,7 @@ export async function buildQuotaStatusReport(params: {
       }
     }
   }
+  appendProviderCompactLiveProbeRows(minimaxRows, "minimax-coding-plan", params.providerLiveProbes);
   sections.push(createKvSection("minimax", "minimax:", minimaxRows));
 
   // === kimi ===
@@ -956,6 +990,7 @@ export async function buildQuotaStatusReport(params: {
       }
     }
   }
+  appendProviderCompactLiveProbeRows(kimiRows, "kimi-for-coding", params.providerLiveProbes);
   sections.push(createKvSection("kimi", "kimi:", kimiRows));
 
   // === opencode_go ===
@@ -996,6 +1031,7 @@ export async function buildQuotaStatusReport(params: {
       }
     }
   }
+  appendProviderCompactLiveProbeRows(openCodeGoRows, "opencode-go", params.providerLiveProbes);
   sections.push(createKvSection("opencode_go", "opencode_go:", openCodeGoRows));
 
   // === zai ===
@@ -1044,6 +1080,7 @@ export async function buildQuotaStatusReport(params: {
       }
     }
   }
+  appendProviderCompactLiveProbeRows(zaiRows, "zai", params.providerLiveProbes);
   sections.push(createKvSection("zai", "zai:", zaiRows));
 
   // === simple API key sections ===
@@ -1054,22 +1091,18 @@ export async function buildQuotaStatusReport(params: {
       value: formatInlineApiKeyDiagnosticsValue(syntheticDiag),
     },
   ];
-  appendCompactLiveProbeRows(
-    syntheticRows,
-    "synthetic",
-    findProviderLiveProbe("synthetic", params.providerLiveProbes),
-  );
+  appendProviderCompactLiveProbeRows(syntheticRows, "synthetic", params.providerLiveProbes);
   sections.push(createKvSection("synthetic", "synthetic:", syntheticRows));
 
   const chutesDiag = await readBasicApiKeyDiagnostics(getChutesKeyDiagnostics);
-  sections.push(
-    buildBasicApiKeySection({
-      id: "chutes",
-      section: "chutes:",
-      label: "chutes api key",
-      diagnostics: chutesDiag,
-    }),
-  );
+  const chutesRows: ReportKvRow[] = [
+    {
+      key: "chutes api key",
+      value: formatInlineApiKeyDiagnosticsValue(chutesDiag),
+    },
+  ];
+  appendProviderCompactLiveProbeRows(chutesRows, "chutes", params.providerLiveProbes);
+  sections.push(createKvSection("chutes", "chutes:", chutesRows));
 
   // === nanogpt ===
   const nanoGptDiag = await readNanoGptApiKeyDiagnostics(getNanoGptKeyDiagnostics);
@@ -1139,6 +1172,7 @@ export async function buildQuotaStatusReport(params: {
       nanoGptRows.push({ key: "live_fetch_error", value: msg });
     }
   }
+  appendProviderCompactLiveProbeRows(nanoGptRows, "nanogpt", params.providerLiveProbes);
   sections.push(createKvSection("nanogpt", "nanogpt:", nanoGptRows));
 
   // === copilot auth ===
@@ -1217,6 +1251,7 @@ export async function buildQuotaStatusReport(params: {
   });
   copilotRows.push({ key: "effective_source", value: copilotDiag.effectiveSource });
   copilotRows.push({ key: "override", value: copilotDiag.override });
+  appendProviderCompactLiveProbeRows(copilotRows, "copilot", params.providerLiveProbes);
   sections.push(createKvSection("copilot_quota_auth", "copilot_quota_auth:", copilotRows));
 
   // === google antigravity + db path ===
@@ -1264,6 +1299,7 @@ export async function buildQuotaStatusReport(params: {
     key: "opencode db",
     value: `preferred=${dbSelected} present=${joinOrNone(dbPresent)} candidates=${joinOrNone(dbCandidates)}`,
   });
+  appendProviderCompactLiveProbeRows(googleRows, "google-antigravity", params.providerLiveProbes);
   sections.push(createKvSection("google_antigravity", "google_antigravity:", googleRows));
 
   if (params.googleRefresh?.attempted) {

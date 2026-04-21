@@ -137,30 +137,36 @@ describe("collectQuotaRenderData availability handling", () => {
     expect(result.data).toBeNull();
   });
 
-  it("collects per-provider live probes in order and reuses the shared fetch cache", async () => {
+  it("collects per-provider live probes in order, forces classic formatting, and bypasses stale shared fetch cache entries", async () => {
     const syntheticProvider = {
       id: "synthetic",
       isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            name: "Synthetic",
-            percentRemaining: 84,
-            right: "8/50",
-            resetTimeIso: "2026-04-21T18:00:00.000Z",
-          },
-        ],
-        errors: [],
+      fetch: vi.fn().mockImplementation(async ({ config }: any) => {
+        expect(config.formatStyle).toBe("classic");
+        return {
+          attempted: true,
+          entries: [
+            {
+              name: "Synthetic",
+              percentRemaining: 84,
+              right: "8/50",
+              resetTimeIso: "2026-04-21T18:00:00.000Z",
+            },
+          ],
+          errors: [],
+        };
       }),
     };
     const openaiProvider = {
       id: "openai",
       isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [],
-        errors: [{ label: "OpenAI", message: "Temporary outage" }],
+      fetch: vi.fn().mockImplementation(async ({ config }: any) => {
+        expect(config.formatStyle).toBe("classic");
+        return {
+          attempted: true,
+          entries: [],
+          errors: [{ label: "OpenAI", message: "Temporary outage" }],
+        };
       }),
     };
 
@@ -173,6 +179,7 @@ describe("collectQuotaRenderData availability handling", () => {
     };
     const config = {
       ...DEFAULT_CONFIG,
+      formatStyle: "grouped" as const,
       minIntervalMs: 60_000,
       showSessionTokens: false,
     };
@@ -180,12 +187,14 @@ describe("collectQuotaRenderData availability handling", () => {
     const first = await collectQuotaStatusLiveProbes({
       client,
       config,
+      formatStyle: "classic",
       providers: [syntheticProvider, openaiProvider],
       providerFetchCache,
     });
     const second = await collectQuotaStatusLiveProbes({
       client,
       config,
+      formatStyle: "classic",
       providers: [syntheticProvider, openaiProvider],
       providerFetchCache,
     });
@@ -216,7 +225,7 @@ describe("collectQuotaRenderData availability handling", () => {
       },
     ]);
     expect(second).toEqual(first);
-    expect(syntheticProvider.fetch).toHaveBeenCalledOnce();
-    expect(openaiProvider.fetch).toHaveBeenCalledOnce();
+    expect(syntheticProvider.fetch).toHaveBeenCalledTimes(2);
+    expect(openaiProvider.fetch).toHaveBeenCalledTimes(2);
   });
 });

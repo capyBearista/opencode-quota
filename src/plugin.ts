@@ -295,7 +295,6 @@ function isTokenReportCommand(cmd: string): cmd is TokenReportCommandId {
 // =============================================================================
 
 const LIVE_LOCAL_USAGE_PROVIDER_IDS = new Set(["qwen-code", "alibaba-coding-plan", "cursor"]);
-const STATUS_LIVE_PROBE_PROVIDER_IDS = new Set(["synthetic"]);
 
 type QuotaCommandCacheEntry = {
   data?: QuotaCommandRenderData;
@@ -1031,7 +1030,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
     const providersById = new Map(providers.map((provider) => [provider.id, provider] as const));
     const liveProbeProviders = availability.flatMap((item) => {
-      if (!item.enabled || !item.available || !STATUS_LIVE_PROBE_PROVIDER_IDS.has(item.id)) {
+      if (!item.enabled || !item.available) {
         return [];
       }
       const provider = providersById.get(item.id);
@@ -1048,6 +1047,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             sessionID: params.sessionID,
             sessionMeta: currentSession,
           },
+          formatStyle: "classic",
           providers: liveProbeProviders,
           providerFetchCache,
         });

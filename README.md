@@ -319,7 +319,7 @@ Environment variables take precedence over the config file. Run `/quota_status` 
 | Command               | What it shows                                                                                                    |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `/quota`              | Manual grouped quota report with a local call timestamp                                                          |
-| `/quota_status`       | Concise diagnostics for config, TUI setup, provider availability, account detection, pricing snapshot health, and compact live probe rows for supported providers |
+| `/quota_status`       | Concise diagnostics for config, TUI setup, provider availability, account detection, pricing snapshot health, and fresh compact live probe rows in matching provider sections |
 | `/pricing_refresh`    | Pull the local runtime pricing snapshot from `models.dev` on demand                                              |
 | `/tokens_today`       | Tokens used today (calendar day)                                                                                 |
 | `/tokens_daily`       | Tokens used in the last 24 hours                                                                                 |
@@ -331,6 +331,8 @@ Environment variables take precedence over the config file. Run `/quota_status` 
 | `/tokens_between`     | Tokens used between two dates: `YYYY-MM-DD YYYY-MM-DD`                                                           |
 
 ## Provider-Specific Notes
+
+`/quota_status` keeps each provider's existing diagnostics and, for enabled + available supported providers, also appends a fresh sanitized compact probe summary (`live_probe`, `live_entry_*`, `live_error_*`) in that provider's section. If a fresh probe returns nothing reportable, `/quota_status` shows `live_probe: no_data`. Qwen Code and Alibaba Coding Plan use dedicated `qwen_code` and `alibaba_coding_plan` compact probe sections because their auth and local-state diagnostics already live under `paths` and `cursor`.
 
 <a id="anthropic-notes"></a>
 
@@ -446,7 +448,7 @@ See [Qwen Code quick setup](#qwen-code-quick-setup) for auth. Usage is local-onl
 - The canonical companion auth key is `qwen-code`. Older installs may still use `opencode-qwencode-auth`, which remains a supported fallback.
 - Counters increment on successful question-tool completions while the current model is `qwen-code/*`.
 - State file: `.../opencode/opencode-quota/qwen-local-quota.json`.
-- Check `/quota_status` for auth detection, `qwen_oauth_source`, `qwen_local_plan`, and local counter state.
+- Check `/quota_status` for auth detection, `qwen_oauth_source`, `qwen_local_plan`, local counter state, and the dedicated `qwen_code` compact live probe section when Qwen Code is enabled and available.
 
 </details>
 
@@ -465,7 +467,7 @@ Alibaba Coding Plan uses trusted env vars or trusted user/global OpenCode config
 - If auth fallback wins and omits `tier`, or if env/config wins, the plugin uses `experimental.quotaToast.alibabaCodingPlanTier`, which defaults to `lite`.
 - Counters increment on successful question-tool completions while the current model is `alibaba/*` or `alibaba-cn/*`.
 - State file: `.../opencode/opencode-quota/alibaba-coding-plan-local-quota.json`.
-- `/quota_status` shows auth detection, resolved tier, state-file path, and current 5h/weekly/monthly usage.
+- `/quota_status` shows auth detection, resolved tier, state-file path, current 5h/weekly/monthly usage, and the dedicated `alibaba_coding_plan` compact live probe section when Alibaba Coding Plan is enabled and available.
 
 Example fallback tier:
 
@@ -571,6 +573,8 @@ For security, provider secrets are read from environment variables or your user/
 
 Allowed env templates are limited to `{env:CHUTES_API_KEY}`.
 
+- `/quota_status` keeps the existing `chutes` API-key diagnostics and appends a compact sanitized live probe summary when the Chutes provider is enabled and available.
+
 Example user/global config (`~/.config/opencode/opencode.jsonc` on Linux/macOS):
 
 ```jsonc
@@ -594,7 +598,7 @@ Example user/global config (`~/.config/opencode/opencode.jsonc` on Linux/macOS):
 
 See [Google Antigravity quick setup](#google-antigravity-quick-setup). This companion auth flow does not use `auth.json`; it reads `antigravity-accounts.json` from the OpenCode runtime directories. `@slkiser/opencode-quota` expects the companion plugin to be installed separately.
 
-- `/quota_status` includes a `google_antigravity` section with the selected accounts path, all present/candidate paths, account counts, valid refresh-token counts, companion package state/path, and the Google token-cache path.
+- `/quota_status` includes a `google_antigravity` section with the selected accounts path, all present/candidate paths, account counts, valid refresh-token counts, companion package state/path, the Google token-cache path, and compact live probe rows when the provider returns reportable data.
 - If the companion plugin is missing or incompatible, `/quota_status` shows `companion_package_state` and `companion_error`.
 - If detection looks wrong, start with the `google_antigravity` section in `/quota_status`.
 

@@ -283,6 +283,7 @@ export async function collectQuotaStatusLiveProbes(params: {
   client: QuotaProviderContext["client"];
   config: QuotaToastConfig;
   request?: QuotaRequestContext;
+  formatStyle?: QuotaFormatStyle;
   providers: QuotaProvider[];
   providerFetchCache: ProviderFetchCacheStore;
 }): Promise<QuotaStatusLiveProbe[]> {
@@ -302,12 +303,13 @@ export async function collectQuotaStatusLiveProbes(params: {
     config: params.config,
     currentModel,
     currentProviderID,
+    formatStyle: params.formatStyle,
   });
 
   const results = await fetchProviderResults({
     providers: params.providers,
     ctx,
-    ttlMs: params.config.minIntervalMs,
+    ttlMs: 0,
     providerFetchCache: params.providerFetchCache,
   });
 
