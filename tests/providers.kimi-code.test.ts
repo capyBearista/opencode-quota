@@ -53,7 +53,7 @@ describe("kimi-code provider", () => {
     expect(out.errors[0]?.message).toBe("Invalid API key");
   });
 
-  it("maps success into grouped entries for all windows", async () => {
+  it("maps success into canonical grouped-capable entries for all windows", async () => {
     const { queryKimiQuota } = await import("../src/lib/kimi.js");
     (queryKimiQuota as any).mockResolvedValueOnce({
       success: true,
@@ -76,7 +76,7 @@ describe("kimi-code provider", () => {
       ],
     });
 
-    const out = await kimiCodeProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await kimiCodeProvider.fetch({ config: {} } as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
@@ -96,40 +96,10 @@ describe("kimi-code provider", () => {
         resetTimeIso: "2026-01-01T05:00:00.000Z",
       },
     ]);
-  });
-
-  it("maps success into a single toast entry (classic) using worst window", async () => {
-    const { queryKimiQuota } = await import("../src/lib/kimi.js");
-    (queryKimiQuota as any).mockResolvedValueOnce({
-      success: true,
-      label: "Kimi Code",
-      windows: [
-        {
-          label: "Weekly limit",
-          used: 250,
-          limit: 1000,
-          percentRemaining: 75,
-          resetTimeIso: "2026-01-08T00:00:00.000Z",
-        },
-        {
-          label: "5h limit",
-          used: 100,
-          limit: 500,
-          percentRemaining: 80,
-          resetTimeIso: "2026-01-01T05:00:00.000Z",
-        },
-      ],
+    expect(out.presentation).toEqual({
+      classicStrategy: "collapse_worst",
+      classicDisplayName: "Kimi Code",
     });
-
-    const out = await kimiCodeProvider.fetch({ config: { formatStyle: "classic" } } as any);
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        name: "Kimi Code",
-        percentRemaining: 75,
-        resetTimeIso: "2026-01-08T00:00:00.000Z",
-      },
-    ]);
   });
 
   it("maps errors into toast errors", async () => {

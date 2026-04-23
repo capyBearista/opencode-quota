@@ -1,7 +1,7 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
 import type { SidebarPanelState } from "./tui-panel-state.js";
 
-import type { ProviderFetchCacheStore, SessionModelMeta } from "./quota-render-data.js";
+import type { SessionModelMeta } from "./quota-render-data.js";
 
 import { createLoadConfigMeta, loadConfig } from "./config.js";
 import { collectQuotaRenderData } from "./quota-render-data.js";
@@ -92,7 +92,6 @@ export async function getTuiSessionModelMeta(
 export async function loadSidebarPanel(params: {
   api: TuiPluginApi;
   sessionID: string;
-  providerFetchCache: ProviderFetchCacheStore;
 }): Promise<SidebarPanelState> {
   const quotaClient = createTuiQuotaClient(params.api);
   const configMeta = createLoadConfigMeta();
@@ -117,7 +116,6 @@ export async function loadSidebarPanel(params: {
     client: quotaClient,
     config,
     request,
-    providerFetchCache: params.providerFetchCache,
     surfaceExplicitProviderIssues: true,
     formatStyle: config.formatStyle,
   });

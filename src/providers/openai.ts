@@ -53,33 +53,6 @@ export const openaiProvider: QuotaProvider = {
       return attemptedErrorResult("OpenAI", result.error);
     }
 
-    const style = _ctx.config.formatStyle ?? "classic";
-
-    // Keep the classic toast behavior: show a single entry based on the worst remaining window.
-    if (style === "classic") {
-      const windows = [
-        result.windows.hourly && { name: "Hourly", ...result.windows.hourly },
-        result.windows.weekly && { name: "Weekly", ...result.windows.weekly },
-        result.windows.codeReview && { name: "Code Review", ...result.windows.codeReview },
-      ].filter(Boolean) as Array<{ name: string; percentRemaining: number; resetTimeIso?: string }>;
-
-      if (windows.length === 0) {
-        return attemptedResult([{ name: result.label, percentRemaining: 0 }]);
-      }
-
-      windows.sort((a, b) => a.percentRemaining - b.percentRemaining);
-      const worst = windows[0]!;
-
-      return attemptedResult([
-        {
-          name: result.label,
-          percentRemaining: worst.percentRemaining,
-          resetTimeIso: worst.resetTimeIso,
-        },
-      ]);
-    }
-
-    // Grouped style: expose all windows.
     const entries: QuotaToastEntry[] = [];
     const group = result.label;
 
@@ -116,6 +89,13 @@ export const openaiProvider: QuotaProvider = {
       });
     }
 
-    return attemptedResult(entries);
+    if (entries.length === 0) {
+      entries.push({ name: result.label, percentRemaining: 0 });
+    }
+
+    return attemptedResult(entries, [], {
+      classicStrategy: "collapse_worst",
+      classicDisplayName: result.label,
+    });
   },
 };

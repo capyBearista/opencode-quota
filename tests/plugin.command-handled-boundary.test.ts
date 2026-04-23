@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { rm } from "fs/promises";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COMMAND_HANDLED_SENTINEL } from "../src/lib/command-handled.js";
 import {
@@ -11,6 +12,8 @@ import {
   makeQuotaToastTestConfig,
   seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
+
+const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-plugin-command-boundary-tests";
 
 const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
@@ -34,12 +37,30 @@ vi.mock("../src/providers/registry.js", () =>
 
 vi.mock("../src/lib/modelsdev-pricing.js", () => createPricingModuleMock(mocks));
 
+vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
+  getOpencodeRuntimeDirs: () => ({
+    dataDir: `${TEST_RUNTIME_ROOT}/data`,
+    configDir: `${TEST_RUNTIME_ROOT}/config`,
+    cacheDir: `${TEST_RUNTIME_ROOT}/cache`,
+    stateDir: `${TEST_RUNTIME_ROOT}/state`,
+  }),
+}));
+
 describe("plugin command handled boundary", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     seedDefaultPluginBootstrapMocks(mocks, {
       configOverrides: { enabled: true },
       resetPluginState: true,
     });
+    await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
+    const { __resetQuotaStateForTests } = await import("../src/lib/quota-state.js");
+    __resetQuotaStateForTests();
+  });
+
+  afterEach(async () => {
+    const { __resetQuotaStateForTests } = await import("../src/lib/quota-state.js");
+    __resetQuotaStateForTests();
+    await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
   });
 
   it("propagates command-handled sentinel errors to abort command pipeline", async () => {

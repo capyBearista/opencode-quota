@@ -51,25 +51,7 @@ export const alibabaCodingPlanProvider: QuotaProvider = {
       state: await readAlibabaCodingPlanQuotaState(),
       tier: plan.tier,
     });
-    const style = ctx.config.formatStyle ?? "classic";
     const label = `Alibaba Coding Plan (${tierLabel(plan.tier)})`;
-
-    if (style === "classic") {
-      const windows = [
-        { name: "5h", ...quota.fiveHour },
-        { name: "Weekly", ...quota.weekly },
-        { name: "Monthly", ...quota.monthly },
-      ].sort((a, b) => a.percentRemaining - b.percentRemaining);
-      const worst = windows[0]!;
-
-      return attemptedResult([
-        {
-          name: `${label} ${worst.name}`,
-          percentRemaining: worst.percentRemaining,
-          resetTimeIso: worst.resetTimeIso,
-        },
-      ]);
-    }
 
     const entries: QuotaToastEntry[] = [
       {
@@ -98,6 +80,9 @@ export const alibabaCodingPlanProvider: QuotaProvider = {
       },
     ];
 
-    return attemptedResult(entries);
+    return attemptedResult(entries, [], {
+      classicStrategy: "collapse_worst",
+      classicShowRight: false,
+    });
   },
 };

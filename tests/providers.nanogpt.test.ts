@@ -27,7 +27,7 @@ describe("nanogpt provider", () => {
     expectNotAttempted(out);
   });
 
-  it("maps grouped rows for daily, monthly, and balance", async () => {
+  it("maps canonical grouped-capable rows for daily, monthly, and balance", async () => {
     const { queryNanoGptQuota } = await import("../src/lib/nanogpt.js");
     (queryNanoGptQuota as any).mockResolvedValueOnce({
       success: true,
@@ -55,7 +55,7 @@ describe("nanogpt provider", () => {
       },
     });
 
-    const out = await nanoGptProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await nanoGptProvider.fetch({ config: {} } as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
@@ -82,55 +82,10 @@ describe("nanogpt provider", () => {
         value: "$12.34",
       },
     ]);
-  });
-
-  it("maps classic rows for daily, monthly, and balance", async () => {
-    const { queryNanoGptQuota } = await import("../src/lib/nanogpt.js");
-    (queryNanoGptQuota as any).mockResolvedValueOnce({
-      success: true,
-      subscription: {
-        active: true,
-        state: "active",
-        enforceDailyLimit: true,
-        daily: {
-          used: 2.5,
-          limit: 10,
-          remaining: 7.5,
-          percentRemaining: 75,
-          resetTimeIso: "2026-01-02T00:00:00.000Z",
-        },
-        monthly: {
-          used: 25,
-          limit: 100,
-          remaining: 75,
-          percentRemaining: 75,
-          resetTimeIso: "2026-02-01T00:00:00.000Z",
-        },
-      },
-      balance: {
-        nanoBalanceRaw: "3.20",
-      },
+    expect(out.presentation).toEqual({
+      classicStrategy: "preserve",
+      classicShowRight: false,
     });
-
-    const out = await nanoGptProvider.fetch({ config: { formatStyle: "classic" } } as any);
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        name: "NanoGPT Daily",
-        percentRemaining: 75,
-        resetTimeIso: "2026-01-02T00:00:00.000Z",
-      },
-      {
-        name: "NanoGPT Monthly",
-        percentRemaining: 75,
-        resetTimeIso: "2026-02-01T00:00:00.000Z",
-      },
-      {
-        kind: "value",
-        name: "NanoGPT Balance",
-        value: "3.20 NANO",
-      },
-    ]);
   });
 
   it("maps partial endpoint errors and non-active subscription state", async () => {
@@ -157,7 +112,7 @@ describe("nanogpt provider", () => {
       ],
     });
 
-    const out = await nanoGptProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await nanoGptProvider.fetch({ config: {} } as any);
     expect(out.attempted).toBe(true);
     expect(out.entries).toEqual([
       {

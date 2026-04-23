@@ -62,7 +62,7 @@ describe("alibaba-coding-plan provider", () => {
     });
 
     const out = await alibabaCodingPlanProvider.fetch({
-      config: { formatStyle: "grouped", alibabaCodingPlanTier: "pro" },
+      config: { alibabaCodingPlanTier: "pro" },
     } as any);
 
     expectAttemptedWithNoErrors(out);
@@ -87,7 +87,7 @@ describe("alibaba-coding-plan provider", () => {
     });
 
     const out = await alibabaCodingPlanProvider.fetch({
-      config: { formatStyle: "grouped", alibabaCodingPlanTier: "pro" },
+      config: { alibabaCodingPlanTier: "pro" },
     } as any);
 
     expectAttemptedWithNoErrors(out);
@@ -112,7 +112,7 @@ describe("alibaba-coding-plan provider", () => {
       monthly: { used: 0, limit: 90000, percentRemaining: 100 },
     });
 
-    const out = await alibabaCodingPlanProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await alibabaCodingPlanProvider.fetch({ config: {} } as any);
 
     expectAttemptedWithNoErrors(out);
     expect(computeAlibabaCodingPlanQuota as any).toHaveBeenCalledWith({ state: {}, tier: "pro" });
@@ -161,7 +161,7 @@ describe("alibaba-coding-plan provider", () => {
       },
     });
 
-    const out = await alibabaCodingPlanProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await alibabaCodingPlanProvider.fetch({ config: {} } as any);
 
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(3);
@@ -172,49 +172,9 @@ describe("alibaba-coding-plan provider", () => {
       right: "120/6000",
       percentRemaining: 98,
     });
-  });
-
-  it("uses the worst remaining window for classic entries", async () => {
-    const { readAuthFileCached } = await import("../src/lib/opencode-auth.js");
-    const { computeAlibabaCodingPlanQuota, readAlibabaCodingPlanQuotaState } = await import(
-      "../src/lib/qwen-local-quota.js"
-    );
-
-    (readAuthFileCached as any).mockResolvedValue({
-      alibaba: { type: "api", key: "dashscope-key", tier: "lite" },
+    expect(out.presentation).toEqual({
+      classicStrategy: "collapse_worst",
+      classicShowRight: false,
     });
-    (readAlibabaCodingPlanQuotaState as any).mockResolvedValue({});
-    (computeAlibabaCodingPlanQuota as any).mockReturnValue({
-      tier: "lite",
-      fiveHour: {
-        used: 100,
-        limit: 1200,
-        percentRemaining: 91,
-        resetTimeIso: "2026-02-24T15:00:00.000Z",
-      },
-      weekly: {
-        used: 4500,
-        limit: 9000,
-        percentRemaining: 50,
-        resetTimeIso: "2026-03-01T12:00:00.000Z",
-      },
-      monthly: {
-        used: 2000,
-        limit: 18000,
-        percentRemaining: 89,
-        resetTimeIso: "2026-03-26T12:00:00.000Z",
-      },
-    });
-
-    const out = await alibabaCodingPlanProvider.fetch({ config: { formatStyle: "classic" } } as any);
-
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        name: "Alibaba Coding Plan (Lite) Weekly",
-        percentRemaining: 50,
-        resetTimeIso: "2026-03-01T12:00:00.000Z",
-      },
-    ]);
   });
 });

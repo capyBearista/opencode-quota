@@ -110,7 +110,7 @@ export function createAlibabaAuthModuleMock(resolveAlibabaCodingPlanAuthCached: 
 }
 
 export function resetPluginTestState(): void {
-  delete (globalThis as any).__opencodeQuotaCommandCache;
+  // Per-test module resets clear in-memory plugin/cache singletons.
 }
 
 export function makeQuotaToastTestConfig(

@@ -21,7 +21,7 @@ describe("copilot provider", () => {
     expectNotAttempted(out);
   });
 
-  it("maps personal quota into a percent toast entry", async () => {
+  it("maps personal quota into a canonical grouped-capable row", async () => {
     const { queryCopilotQuota } = await import("../src/lib/copilot.js");
     (queryCopilotQuota as any).mockResolvedValueOnce({
       success: true,
@@ -33,28 +33,6 @@ describe("copilot provider", () => {
     });
 
     const out = await copilotProvider.fetch({} as any);
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        name: "Copilot",
-        percentRemaining: 86,
-        resetTimeIso: "2026-02-01T00:00:00.000Z",
-      },
-    ]);
-  });
-
-  it("maps personal quota into a grouped /quota entry", async () => {
-    const { queryCopilotQuota } = await import("../src/lib/copilot.js");
-    (queryCopilotQuota as any).mockResolvedValueOnce({
-      success: true,
-      mode: "user_quota",
-      used: 42,
-      total: 300,
-      percentRemaining: 86,
-      resetTimeIso: "2026-02-01T00:00:00.000Z",
-    });
-
-    const out = await copilotProvider.fetch({ config: { formatStyle: "grouped" } } as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
@@ -66,9 +44,13 @@ describe("copilot provider", () => {
         resetTimeIso: "2026-02-01T00:00:00.000Z",
       },
     ]);
+    expect(out.presentation).toEqual({
+      classicStrategy: "first",
+      classicShowRight: false,
+    });
   });
 
-  it("maps organization usage into a value toast entry", async () => {
+  it("maps organization usage into a grouped-capable business entry", async () => {
     const { queryCopilotQuota } = await import("../src/lib/copilot.js");
     (queryCopilotQuota as any).mockResolvedValueOnce({
       success: true,
@@ -84,33 +66,6 @@ describe("copilot provider", () => {
     });
 
     const out = await copilotProvider.fetch({} as any);
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        kind: "value",
-        name: "Copilot Org (acme-corp)",
-        value: "9 used | 2026-01 | user=alice",
-        resetTimeIso: "2026-02-01T00:00:00.000Z",
-      },
-    ]);
-  });
-
-  it("maps organization usage into a grouped business entry", async () => {
-    const { queryCopilotQuota } = await import("../src/lib/copilot.js");
-    (queryCopilotQuota as any).mockResolvedValueOnce({
-      success: true,
-      mode: "organization_usage",
-      organization: "acme-corp",
-      username: "alice",
-      period: {
-        year: 2026,
-        month: 1,
-      },
-      used: 9,
-      resetTimeIso: "2026-02-01T00:00:00.000Z",
-    });
-
-    const out = await copilotProvider.fetch({ config: { formatStyle: "grouped" } } as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
@@ -122,9 +77,13 @@ describe("copilot provider", () => {
         resetTimeIso: "2026-02-01T00:00:00.000Z",
       },
     ]);
+    expect(out.presentation).toEqual({
+      classicStrategy: "first",
+      classicDisplayName: "Copilot Org (acme-corp)",
+    });
   });
 
-  it("maps enterprise usage into a value toast entry", async () => {
+  it("maps enterprise usage into a grouped-capable business entry", async () => {
     const { queryCopilotQuota } = await import("../src/lib/copilot.js");
     (queryCopilotQuota as any).mockResolvedValueOnce({
       success: true,
@@ -144,33 +103,6 @@ describe("copilot provider", () => {
     expect(out.entries).toEqual([
       {
         kind: "value",
-        name: "Copilot Enterprise (acme-enterprise)",
-        value: "19 used | 2026-01 | org=acme-corp",
-        resetTimeIso: "2026-02-01T00:00:00.000Z",
-      },
-    ]);
-  });
-
-  it("maps enterprise usage into a grouped business entry", async () => {
-    const { queryCopilotQuota } = await import("../src/lib/copilot.js");
-    (queryCopilotQuota as any).mockResolvedValueOnce({
-      success: true,
-      mode: "enterprise_usage",
-      enterprise: "acme-enterprise",
-      organization: "acme-corp",
-      period: {
-        year: 2026,
-        month: 1,
-      },
-      used: 19,
-      resetTimeIso: "2026-02-01T00:00:00.000Z",
-    });
-
-    const out = await copilotProvider.fetch({ config: { formatStyle: "grouped" } } as any);
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        kind: "value",
         name: "Copilot",
         group: "Copilot (business)",
         label: "Usage:",
@@ -178,6 +110,10 @@ describe("copilot provider", () => {
         resetTimeIso: "2026-02-01T00:00:00.000Z",
       },
     ]);
+    expect(out.presentation).toEqual({
+      classicStrategy: "first",
+      classicDisplayName: "Copilot Enterprise (acme-enterprise)",
+    });
   });
 
   it("maps errors into toast errors", async () => {

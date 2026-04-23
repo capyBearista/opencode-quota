@@ -10,7 +10,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 import type { QuotaToastConfig } from "./lib/types.js";
 import { DEFAULT_CONFIG } from "./lib/types.js";
 import { loadConfig, createLoadConfigMeta, type LoadConfigMeta } from "./lib/config.js";
-import { getOrFetchWithCacheControl } from "./lib/cache.js";
+import { clearCache, getOrFetchWithCacheControl } from "./lib/cache.js";
 import { formatQuotaRows } from "./lib/format.js";
 import { formatQuotaCommand } from "./lib/quota-command-format.js";
 import { getProviders } from "./providers/registry.js";
@@ -59,7 +59,6 @@ import {
   collectQuotaStatusLiveProbes,
   matchesQuotaProviderCurrentSelection,
   resolveQuotaRenderSelection,
-  type ProviderFetchCacheStore,
   type QuotaRenderData as QuotaCommandRenderData,
   type QuotaRequestContext as QuotaCommandRequestContext,
   type QuotaStatusLiveProbe,
@@ -294,16 +293,6 @@ function isTokenReportCommand(cmd: string): cmd is TokenReportCommandId {
 // Plugin Implementation
 // =============================================================================
 
-const LIVE_LOCAL_USAGE_PROVIDER_IDS = new Set(["qwen-code", "alibaba-coding-plan", "cursor"]);
-
-type QuotaCommandCacheEntry = {
-  data?: QuotaCommandRenderData;
-  timestamp: number;
-  inFlight?: Promise<QuotaCommandRenderData | null>;
-};
-
-type QuotaCommandCacheStore = Map<string, QuotaCommandCacheEntry>;
-
 /**
  * Main plugin export
  */
@@ -349,58 +338,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
   // Track last session token error for /quota_status diagnostics
   let lastSessionTokenError: SessionTokenError | undefined;
-
-  const providerFetchCache: ProviderFetchCacheStore = new Map();
-
-  function getQuotaCommandCache(): QuotaCommandCacheStore {
-    const existing = (globalThis as any).__opencodeQuotaCommandCache as unknown;
-    if (existing instanceof Map) {
-      return existing as QuotaCommandCacheStore;
-    }
-
-    const quotaCache: QuotaCommandCacheStore = new Map();
-    (globalThis as any).__opencodeQuotaCommandCache = quotaCache;
-    return quotaCache;
-  }
-
-  function clearQuotaCommandCache(): void {
-    getQuotaCommandCache().clear();
-  }
-
-  function buildQuotaCommandCacheKey(params: QuotaCommandRequestContext): string {
-    const enabledProviders =
-      config.enabledProviders === "auto" ? "auto" : config.enabledProviders.join(",");
-    const googleModels = config.googleModels.join(",");
-    const currentModel =
-      config.onlyCurrentModel && params.sessionID ? (params.sessionMeta?.modelID ?? "") : "";
-    const currentProviderID =
-      config.onlyCurrentModel && params.sessionID ? (params.sessionMeta?.providerID ?? "") : "";
-
-    return [
-      `sessionID=${params.sessionID ?? ""}`,
-      `showSessionTokens=${config.showSessionTokens ? "yes" : "no"}`,
-      `onlyCurrentModel=${config.onlyCurrentModel ? "yes" : "no"}`,
-      `enabledProviders=${enabledProviders}`,
-      `anthropicBinaryPath=${config.anthropicBinaryPath}`,
-      `googleModels=${googleModels}`,
-      `alibabaTier=${config.alibabaCodingPlanTier}`,
-      `cursorPlan=${config.cursorPlan}`,
-      `cursorIncludedApiUsd=${config.cursorIncludedApiUsd ?? ""}`,
-      `cursorBillingCycleStartDay=${config.cursorBillingCycleStartDay ?? ""}`,
-      `currentModel=${currentModel}`,
-      `currentProviderID=${currentProviderID}`,
-    ].join("|");
-  }
-
-  function pruneQuotaCommandCache(ttlMs: number, nowMs: number): void {
-    const quotaCache = getQuotaCommandCache();
-    for (const [cacheKey, entry] of quotaCache.entries()) {
-      if (entry.inFlight) continue;
-      if (entry.timestamp <= 0 || ttlMs <= 0 || nowMs - entry.timestamp >= ttlMs) {
-        quotaCache.delete(cacheKey);
-      }
-    }
-  }
 
   function asRecord(value: unknown): Record<string, unknown> | null {
     return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -475,18 +412,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     }
 
     return false;
-  }
-
-  async function shouldBypassQuotaCommandCache(
-    sessionID?: string,
-    sessionMeta?: SessionModelMeta,
-  ): Promise<boolean> {
-    if (config.debug || !sessionID) return config.debug;
-    return await shouldBypassToastCacheForLiveLocalUsage({
-      trigger: "question",
-      sessionID,
-      sessionMeta,
-    });
   }
 
   async function refreshConfig(): Promise<void> {
@@ -688,7 +613,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       client: typedClient,
       config,
       request: params,
-      formatStyle: "grouped",
     });
     if (!selection) {
       return "Quota unavailable\n\nNo enabled quota providers are configured.\n\nRun /quota_status for diagnostics.";
@@ -734,7 +658,49 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     );
   }
 
-  async function fetchQuotaMessage(trigger: string, sessionID?: string): Promise<string | null> {
+  function buildToastCacheKey(params: {
+    sessionID: string;
+    sessionMeta?: SessionModelMeta;
+  }): string {
+    const enabledProviders =
+      config.enabledProviders === "auto" ? "auto" : config.enabledProviders.join(",");
+    const googleModels = config.googleModels.join(",");
+    const currentModel =
+      config.onlyCurrentModel && params.sessionID ? (params.sessionMeta?.modelID ?? "") : "";
+    const currentProviderID =
+      config.onlyCurrentModel && params.sessionID ? (params.sessionMeta?.providerID ?? "") : "";
+
+    return [
+      `sessionID=${params.sessionID}`,
+      `enabledProviders=${enabledProviders}`,
+      `formatStyle=${config.formatStyle}`,
+      `percentDisplayMode=${config.percentDisplayMode}`,
+      `layout=${JSON.stringify(config.layout)}`,
+      `showSessionTokens=${config.showSessionTokens ? "yes" : "no"}`,
+      `onlyCurrentModel=${config.onlyCurrentModel ? "yes" : "no"}`,
+      `currentModel=${currentModel}`,
+      `currentProviderID=${currentProviderID}`,
+      `anthropicBinaryPath=${config.anthropicBinaryPath}`,
+      `googleModels=${googleModels}`,
+      `alibabaTier=${config.alibabaCodingPlanTier}`,
+      `cursorPlan=${config.cursorPlan}`,
+      `cursorIncludedApiUsd=${config.cursorIncludedApiUsd ?? ""}`,
+      `cursorBillingCycleStartDay=${config.cursorBillingCycleStartDay ?? ""}`,
+    ].join("|");
+  }
+
+  function clearToastCacheForSession(params: {
+    sessionID: string;
+    sessionMeta?: SessionModelMeta;
+  }): void {
+    clearCache(buildToastCacheKey(params));
+  }
+
+  async function fetchQuotaMessage(params: {
+    trigger: string;
+    sessionID?: string;
+    sessionMeta?: SessionModelMeta;
+  }): Promise<string | null> {
     // Ensure we have loaded config at least once. If load fails, we keep trying
     // on subsequent triggers.
     if (!configLoaded) {
@@ -743,33 +709,38 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
     if (!config.enabled) {
       return config.debug
-        ? formatDebugInfo({ trigger, reason: "disabled", enabledProviders: [] })
+        ? formatDebugInfo({ trigger: params.trigger, reason: "disabled", enabledProviders: [] })
         : null;
     }
 
     if (config.enabledProviders !== "auto" && config.enabledProviders.length === 0) {
       return config.debug
-        ? formatDebugInfo({ trigger, reason: "enabledProviders empty", enabledProviders: [] })
+        ? formatDebugInfo({
+            trigger: params.trigger,
+            reason: "enabledProviders empty",
+            enabledProviders: [],
+          })
         : null;
     }
 
     const quotaRequestContext: QuotaCommandRequestContext = {
-      sessionID,
+      sessionID: params.sessionID,
       sessionMeta:
-        config.onlyCurrentModel && sessionID ? await getSessionModelMeta(sessionID) : undefined,
+        config.onlyCurrentModel && params.sessionID
+          ? (params.sessionMeta ?? (await getSessionModelMeta(params.sessionID)))
+          : undefined,
     };
     const quotaResult = await collectQuotaRenderData({
       client: typedClient,
       config,
       request: quotaRequestContext,
-      providerFetchCache,
       surfaceExplicitProviderIssues: true,
       formatStyle: config.formatStyle,
     });
     const { selection, availability, active, attemptedAny, hasExplicitProviderIssues, data } =
       quotaResult;
 
-    if (config.showSessionTokens && sessionID) {
+    if (config.showSessionTokens && params.sessionID) {
       lastSessionTokenError = quotaResult.sessionTokenError;
     }
 
@@ -779,7 +750,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     if (active.length === 0 && !(hasExplicitProviderIssues && errors.length > 0)) {
       return config.debug
         ? formatDebugInfo({
-            trigger,
+            trigger: params.trigger,
             reason: "no enabled providers available",
             currentModel,
             enabledProviders: config.enabledProviders,
@@ -821,7 +792,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         (errorLines || "Quota unavailable") +
         "\n\n" +
         formatDebugInfo({
-          trigger,
+          trigger: params.trigger,
           reason: hasExplicitProviderIssues
             ? "providers missing/unavailable"
             : "all providers failed",
@@ -837,7 +808,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
     return config.debug
       ? formatDebugInfo({
-          trigger,
+          trigger: params.trigger,
           reason: "no entries",
           currentModel,
           enabledProviders: config.enabledProviders,
@@ -872,14 +843,16 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       return lines.some((l) => /\b\d{1,3}%\b/.test(l) && !/:\s/.test(l));
     }
 
+    const sessionMeta = await getSessionModelMeta(sessionID);
     const bypassMessageCache = config.debug
       ? true
-      : await shouldBypassToastCacheForLiveLocalUsage({ trigger, sessionID });
+      : await shouldBypassToastCacheForLiveLocalUsage({ trigger, sessionID, sessionMeta });
+    const toastCacheKey = buildToastCacheKey({ sessionID, sessionMeta });
 
     const message = bypassMessageCache
-      ? await fetchQuotaMessage(trigger, sessionID)
-      : await getOrFetchWithCacheControl(async () => {
-          const msg = await fetchQuotaMessage(trigger, sessionID);
+      ? await fetchQuotaMessage({ trigger, sessionID, sessionMeta })
+      : await getOrFetchWithCacheControl(toastCacheKey, async () => {
+          const msg = await fetchQuotaMessage({ trigger, sessionID, sessionMeta });
           const cache = msg ? shouldCacheToastMessage(msg) : true;
           return { message: msg, cache };
         }, config.minIntervalMs);
@@ -912,14 +885,12 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   }
 
   async function fetchQuotaCommandData(
-    trigger: string,
     params: QuotaCommandRequestContext = {},
   ): Promise<QuotaCommandRenderData | null> {
     const quotaResult = await collectQuotaRenderData({
       client: typedClient,
       config,
       request: params,
-      providerFetchCache,
       surfaceExplicitProviderIssues: false,
       formatStyle: "grouped",
     });
@@ -1049,7 +1020,6 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
           },
           formatStyle: "classic",
           providers: liveProbeProviders,
-          providerFetchCache,
         });
       } catch (error) {
         await typedClient.app.log({
@@ -1187,52 +1157,11 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   async function handleQuotaSlashCommand(input: CommandExecuteInput): Promise<never> {
     const sessionID = input.sessionID;
     const generatedAtMs = Date.now();
-    const now = generatedAtMs;
     const quotaRequestContext: QuotaCommandRequestContext = {
       sessionID,
       sessionMeta: sessionID ? await getSessionModelMeta(sessionID) : undefined,
     };
-    const bypassCommandCache = await shouldBypassQuotaCommandCache(
-      sessionID,
-      quotaRequestContext.sessionMeta,
-    );
-    const reportData = bypassCommandCache
-      ? await fetchQuotaCommandData("command:/quota", quotaRequestContext)
-      : await (async () => {
-          const quotaCache = getQuotaCommandCache();
-          pruneQuotaCommandCache(config.minIntervalMs, now);
-
-          const cacheKey = buildQuotaCommandCacheKey(quotaRequestContext);
-          const cachedEntry = quotaCache.get(cacheKey);
-          if (cachedEntry?.timestamp && now - cachedEntry.timestamp < config.minIntervalMs) {
-            return cachedEntry.data ?? null;
-          }
-
-          const cacheEntry: QuotaCommandCacheEntry = cachedEntry ?? { timestamp: 0 };
-          if (!cachedEntry) {
-            quotaCache.set(cacheKey, cacheEntry);
-          }
-
-          return await (cacheEntry.inFlight ??
-            (cacheEntry.inFlight = (async () => {
-              try {
-                const freshData = await fetchQuotaCommandData(
-                  "command:/quota",
-                  quotaRequestContext,
-                );
-                if (freshData) {
-                  cacheEntry.data = freshData;
-                  cacheEntry.timestamp = Date.now();
-                }
-                return freshData;
-              } finally {
-                cacheEntry.inFlight = undefined;
-                if (!cacheEntry.data && cacheEntry.timestamp <= 0) {
-                  quotaCache.delete(cacheKey);
-                }
-              }
-            })()));
-        })();
+    const reportData = await fetchQuotaCommandData(quotaRequestContext);
 
     if (!reportData) {
       if (!configLoaded) {
@@ -1572,7 +1501,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             const plan = await resolveQwenLocalPlanCached();
             if (plan.state === "qwen_free") {
               await recordQwenCompletion();
-              clearQuotaCommandCache();
+              clearToastCacheForSession({ sessionID: input.sessionID, sessionMeta });
             }
           } else if (isAlibabaModelId(model)) {
             const plan = await resolveAlibabaCodingPlanAuthCached({
@@ -1581,10 +1510,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             });
             if (plan.state === "configured") {
               await recordAlibabaCodingPlanCompletion();
-              clearQuotaCommandCache();
+              clearToastCacheForSession({ sessionID: input.sessionID, sessionMeta });
             }
           } else if (isCursorProviderId(sessionMeta.providerID) || isCursorModelId(model)) {
-            clearQuotaCommandCache();
+            clearToastCacheForSession({ sessionID: input.sessionID, sessionMeta });
           }
         } catch (err) {
           await log("Failed to record local request-plan quota completion", {

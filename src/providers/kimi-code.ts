@@ -61,22 +61,6 @@ export const kimiCodeProvider: QuotaProvider = {
       return attemptedErrorResult("Kimi Code", result.error);
     }
 
-    const style = ctx.config.formatStyle ?? "classic";
-
-    if (style === "classic") {
-      const worst = [...result.windows].sort((a, b) => a.percentRemaining - b.percentRemaining)[0];
-      if (!worst) {
-        return attemptedResult([]);
-      }
-      return attemptedResult([
-        {
-          name: result.label,
-          percentRemaining: worst.percentRemaining,
-          resetTimeIso: worst.resetTimeIso,
-        },
-      ]);
-    }
-
     const entries: QuotaToastEntry[] = result.windows.map((window) => ({
       name: `${result.label} ${window.label}`,
       group: result.label,
@@ -86,6 +70,9 @@ export const kimiCodeProvider: QuotaProvider = {
       resetTimeIso: window.resetTimeIso,
     }));
 
-    return attemptedResult(entries);
+    return attemptedResult(entries, [], {
+      classicStrategy: "collapse_worst",
+      classicDisplayName: result.label,
+    });
   },
 };

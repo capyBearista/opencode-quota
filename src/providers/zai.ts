@@ -57,39 +57,6 @@ export const zaiProvider: QuotaProvider = {
       return attemptedErrorResult("Z.ai", result.error);
     }
 
-    const style = ctx.config.formatStyle ?? "classic";
-
-    // Classic toast: show a single entry based on the worst remaining window
-    if (style === "classic") {
-      const windows: Array<{ name: string; percentRemaining: number; resetTimeIso?: string }> = [];
-
-      if (result.windows.fiveHour) {
-        windows.push({ name: "5h", ...result.windows.fiveHour });
-      }
-      if (result.windows.weekly) {
-        windows.push({ name: "Weekly", ...result.windows.weekly });
-      }
-      if (result.windows.mcp) {
-        windows.push({ name: "MCP", ...result.windows.mcp });
-      }
-
-      if (windows.length === 0) {
-        return attemptedResult([{ name: result.label, percentRemaining: 0 }]);
-      }
-
-      windows.sort((a, b) => a.percentRemaining - b.percentRemaining);
-      const worst = windows[0]!;
-
-      return attemptedResult([
-        {
-          name: result.label,
-          percentRemaining: worst.percentRemaining,
-          resetTimeIso: worst.resetTimeIso,
-        },
-      ]);
-    }
-
-    // Grouped style: expose all windows
     const entries: QuotaToastEntry[] = [];
     const group = result.label;
 
@@ -126,6 +93,13 @@ export const zaiProvider: QuotaProvider = {
       });
     }
 
-    return attemptedResult(entries);
+    if (entries.length === 0) {
+      entries.push({ name: result.label, percentRemaining: 0 });
+    }
+
+    return attemptedResult(entries, [], {
+      classicStrategy: "collapse_worst",
+      classicDisplayName: result.label,
+    });
   },
 };

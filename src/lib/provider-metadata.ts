@@ -98,6 +98,12 @@ export const QUOTA_PROVIDER_RUNTIME_IDS: QuotaProviderRuntimeIds = {
   "opencode-go": ["opencode-go"],
 };
 
+const LIVE_LOCAL_USAGE_PROVIDER_ID_SET = new Set<string>([
+  "qwen-code",
+  "alibaba-coding-plan",
+  "cursor",
+]);
+
 export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
   {
     id: "anthropic",
@@ -226,4 +232,8 @@ export function getQuotaProviderRuntimeIds(id: string): readonly string[] {
   }
 
   return [...new Set(QUOTA_PROVIDER_RUNTIME_IDS[shape.id])];
+}
+
+export function isLiveLocalUsageProviderId(id: string): boolean {
+  return LIVE_LOCAL_USAGE_PROVIDER_ID_SET.has(normalizeQuotaProviderId(id));
 }

@@ -31,7 +31,7 @@ describe("qwen-code provider", () => {
     expectNotAttempted(out);
   });
 
-  it("maps qwen free local quota into grouped entries", async () => {
+  it("maps qwen free local quota into canonical grouped-capable entries", async () => {
     const { readAuthFileCached } = await import("../src/lib/opencode-auth.js");
     const { computeQwenQuota, readQwenLocalQuotaState } = await import("../src/lib/qwen-local-quota.js");
 
@@ -54,7 +54,7 @@ describe("qwen-code provider", () => {
       },
     });
 
-    const out = await qwenCodeProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await qwenCodeProvider.fetch({ config: {} } as any);
 
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(2);
@@ -71,6 +71,10 @@ describe("qwen-code provider", () => {
       label: "RPM:",
       right: "5/60",
       percentRemaining: 92,
+    });
+    expect(out.presentation).toEqual({
+      classicStrategy: "preserve",
+      classicShowRight: false,
     });
   });
 
@@ -97,17 +101,23 @@ describe("qwen-code provider", () => {
       },
     });
 
-    const out = await qwenCodeProvider.fetch({ config: { formatStyle: "classic" } } as any);
+    const out = await qwenCodeProvider.fetch({ config: {} } as any);
 
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
         name: "Qwen Free Daily",
+        group: "Qwen (free)",
+        label: "Daily:",
+        right: "1/1000",
         percentRemaining: 99,
         resetTimeIso: "2026-02-25T00:00:00.000Z",
       },
       {
         name: "Qwen Free RPM",
+        group: "Qwen (free)",
+        label: "RPM:",
+        right: "1/60",
         percentRemaining: 98,
         resetTimeIso: "2026-02-24T12:00:30.000Z",
       },

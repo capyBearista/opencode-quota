@@ -1,4 +1,5 @@
 import type {
+  QuotaProviderPresentation,
   QuotaProviderResult,
   QuotaToastEntry,
   QuotaToastError,
@@ -11,8 +12,14 @@ export function notAttemptedResult(): QuotaProviderResult {
 export function attemptedResult(
   entries: QuotaToastEntry[],
   errors: QuotaToastError[] = [],
+  presentation?: QuotaProviderPresentation,
 ): QuotaProviderResult {
-  return { attempted: true, entries, errors };
+  return {
+    attempted: true,
+    entries,
+    errors,
+    ...(presentation ? { presentation } : {}),
+  };
 }
 
 export function attemptedErrorResult(label: string, message: string): QuotaProviderResult {

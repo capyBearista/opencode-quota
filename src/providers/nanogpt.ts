@@ -44,7 +44,6 @@ export const nanoGptProvider: QuotaProvider = {
       return attemptedErrorResult("NanoGPT", result.error);
     }
 
-    const style = ctx.config.formatStyle ?? "classic";
     const entries: QuotaToastEntry[] = [];
     const errors =
       result.endpointErrors?.map((entry) => ({
@@ -55,58 +54,40 @@ export const nanoGptProvider: QuotaProvider = {
     const subscription = result.subscription;
     if (subscription?.daily) {
       entries.push(
-        style === "grouped"
-          ? {
-              name: "NanoGPT Daily",
-              group: "NanoGPT",
-              label: "Daily:",
-              right: formatUsageRight(subscription.daily),
-              percentRemaining: subscription.daily.percentRemaining,
-              resetTimeIso: subscription.daily.resetTimeIso,
-            }
-          : {
-              name: "NanoGPT Daily",
-              percentRemaining: subscription.daily.percentRemaining,
-              resetTimeIso: subscription.daily.resetTimeIso,
-            },
+        {
+          name: "NanoGPT Daily",
+          group: "NanoGPT",
+          label: "Daily:",
+          right: formatUsageRight(subscription.daily),
+          percentRemaining: subscription.daily.percentRemaining,
+          resetTimeIso: subscription.daily.resetTimeIso,
+        },
       );
     }
 
     if (subscription?.monthly) {
       entries.push(
-        style === "grouped"
-          ? {
-              name: "NanoGPT Monthly",
-              group: "NanoGPT",
-              label: "Monthly:",
-              right: formatUsageRight(subscription.monthly),
-              percentRemaining: subscription.monthly.percentRemaining,
-              resetTimeIso: subscription.monthly.resetTimeIso,
-            }
-          : {
-              name: "NanoGPT Monthly",
-              percentRemaining: subscription.monthly.percentRemaining,
-              resetTimeIso: subscription.monthly.resetTimeIso,
-            },
+        {
+          name: "NanoGPT Monthly",
+          group: "NanoGPT",
+          label: "Monthly:",
+          right: formatUsageRight(subscription.monthly),
+          percentRemaining: subscription.monthly.percentRemaining,
+          resetTimeIso: subscription.monthly.resetTimeIso,
+        },
       );
     }
 
     const balanceValue = result.balance ? formatNanoGptBalanceValue(result.balance) : null;
     if (balanceValue) {
       entries.push(
-        style === "grouped"
-          ? {
-              kind: "value",
-              name: "NanoGPT Balance",
-              group: "NanoGPT",
-              label: "Balance:",
-              value: balanceValue,
-            }
-          : {
-              kind: "value",
-              name: "NanoGPT Balance",
-              value: balanceValue,
-            },
+        {
+          kind: "value",
+          name: "NanoGPT Balance",
+          group: "NanoGPT",
+          label: "Balance:",
+          value: balanceValue,
+        },
       );
     }
 
@@ -124,6 +105,9 @@ export const nanoGptProvider: QuotaProvider = {
       });
     }
 
-    return attemptedResult(entries, errors);
+    return attemptedResult(entries, errors, {
+      classicStrategy: "preserve",
+      classicShowRight: false,
+    });
   },
 };

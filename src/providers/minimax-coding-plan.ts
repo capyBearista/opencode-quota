@@ -232,7 +232,7 @@ export const minimaxCodingPlanProvider: QuotaProvider = {
     return normalizeQuotaProviderId(provider) === "minimax-coding-plan" && Boolean(modelId) && isMiniMaxCodingModelName(modelId);
   },
 
-  async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+  async fetch(_ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
     const auth = await resolveMiniMaxAuthCached({
       maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
     });
@@ -251,22 +251,9 @@ export const minimaxCodingPlanProvider: QuotaProvider = {
       return attemptedErrorResult(MINIMAX_PROVIDER_LABEL, result.error);
     }
 
-    const style = ctx.config.formatStyle ?? "classic";
-
-    if (style === "classic") {
-      const worst = [...result.entries].sort((a, b) => a.percentRemaining - b.percentRemaining)[0];
-      if (!worst) {
-        return attemptedResult([]);
-      }
-      return attemptedResult([
-        {
-          name: worst.name,
-          percentRemaining: worst.percentRemaining,
-          resetTimeIso: worst.resetTimeIso,
-        },
-      ]);
-    }
-
-    return attemptedResult(result.entries);
+    return attemptedResult(result.entries, [], {
+      classicStrategy: "collapse_worst",
+      classicShowRight: false,
+    });
   },
 };

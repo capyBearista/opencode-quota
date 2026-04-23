@@ -80,8 +80,8 @@ function mockMiniMaxHttpFailure(status: number, text: string) {
   });
 }
 
-async function runProviderFetch(formatStyle: "grouped" | "classic" = "grouped") {
-  return minimaxCodingPlanProvider.fetch({ config: { formatStyle } } as any);
+async function runProviderFetch() {
+  return minimaxCodingPlanProvider.fetch({ config: {} } as any);
 }
 
 describe("minimax-coding-plan provider", () => {
@@ -286,7 +286,7 @@ describe("minimax-coding-plan provider", () => {
     expect(thrownOut.errors[0]?.message).toBe("network failed");
   });
 
-  it("uses worst remaining entry for classic style", async () => {
+  it("adds collapse metadata for later classic projection", async () => {
     mockMiniMaxAuthConfigured();
     mockMiniMaxHttpSuccess([
       createCodingPlanModel({
@@ -295,13 +295,13 @@ describe("minimax-coding-plan provider", () => {
       }),
     ]);
 
-    const out = await runProviderFetch("classic");
+    const out = await runProviderFetch();
 
     expectAttemptedWithNoErrors(out);
-    expect(out.entries).toHaveLength(1);
-    expect(out.entries[0]).toMatchObject({
-      name: "MiniMax Coding Plan Weekly",
-      percentRemaining: 0,
+    expect(out.entries).toHaveLength(2);
+    expect(out.presentation).toEqual({
+      classicStrategy: "collapse_worst",
+      classicShowRight: false,
     });
   });
 

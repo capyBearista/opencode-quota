@@ -120,7 +120,6 @@ describe("tui runtime helpers", () => {
         client: {},
       } as any,
       sessionID: "session-1",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "disabled", lines: [] });
@@ -155,7 +154,6 @@ describe("tui runtime helpers", () => {
         },
       } as any,
       sessionID: "session-sdk-fallback",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "disabled", lines: [] });
@@ -210,7 +208,6 @@ describe("tui runtime helpers", () => {
         },
       } as any,
       sessionID: "session-sdk-fields",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "ready", lines: ["Quota line"] });
@@ -282,7 +279,6 @@ describe("tui runtime helpers", () => {
         client: {},
       } as any,
       sessionID: "session-2",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "ready", lines: ["Quota line"] });
@@ -337,7 +333,6 @@ describe("tui runtime helpers", () => {
         client: {},
       } as any,
       sessionID: "session-grouped",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "ready", lines: ["→ [Copilot] (business)"] });
@@ -402,7 +397,6 @@ describe("tui runtime helpers", () => {
         client: {},
       } as any,
       sessionID: "session-weekly-grouped",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "ready", lines: ["→ [Synthetic]", "  Weekly: $22/$24"] });
@@ -466,7 +460,6 @@ describe("tui runtime helpers", () => {
         },
       } as any,
       sessionID: "session-2b",
-      providerFetchCache: new Map(),
     });
 
     expect(panel).toEqual({ status: "ready", lines: ["Quota line"] });

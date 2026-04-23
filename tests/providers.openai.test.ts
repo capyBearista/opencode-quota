@@ -23,25 +23,39 @@ describe("openai provider", () => {
     expectNotAttempted(out);
   });
 
-  it("maps success into a single toast entry (classic)", async () => {
+  it("maps success into canonical grouped-capable windows with classic projection metadata", async () => {
     const { queryOpenAIQuota } = await import("../src/lib/openai.js");
     (queryOpenAIQuota as any).mockResolvedValueOnce({
       success: true,
       label: "OpenAI (Pro)",
       windows: {
         hourly: { percentRemaining: 42, resetTimeIso: "2026-01-01T00:00:00.000Z" },
+        weekly: { percentRemaining: 80, resetTimeIso: "2026-01-07T00:00:00.000Z" },
       },
     });
 
-    const out = await openaiProvider.fetch({ config: {} } as any);
+    const out = await openaiProvider.fetch({} as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
-        name: "OpenAI (Pro)",
+        name: "OpenAI (Pro) Hourly",
+        group: "OpenAI (Pro)",
+        label: "Hourly:",
         percentRemaining: 42,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
       },
+      {
+        name: "OpenAI (Pro) Weekly",
+        group: "OpenAI (Pro)",
+        label: "Weekly:",
+        percentRemaining: 80,
+        resetTimeIso: "2026-01-07T00:00:00.000Z",
+      },
     ]);
+    expect(out.presentation).toEqual({
+      classicStrategy: "collapse_worst",
+      classicDisplayName: "OpenAI (Pro)",
+    });
   });
 
   it("maps errors into toast errors", async () => {

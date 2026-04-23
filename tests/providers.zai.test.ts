@@ -38,7 +38,7 @@ describe("zai provider", () => {
     expectNotAttempted(out);
   });
 
-  it("maps success into a single toast entry (classic) using worst window", async () => {
+  it("maps success into canonical grouped-capable entries with collapse metadata", async () => {
     const { queryZaiQuota } = await import("../src/lib/zai.js");
     (queryZaiQuota as any).mockResolvedValueOnce({
       success: true,
@@ -50,54 +50,35 @@ describe("zai provider", () => {
       },
     });
 
-    const out = await zaiProvider.fetch({ config: { formatStyle: "classic" } } as any);
-    expectAttemptedWithNoErrors(out);
-    expect(out.entries).toEqual([
-      {
-        name: "Z.ai",
-        percentRemaining: 30,
-        resetTimeIso: "2026-01-02T00:00:00.000Z",
-      },
-    ]);
-  });
-
-  it("maps success into grouped entries for all windows", async () => {
-    const { queryZaiQuota } = await import("../src/lib/zai.js");
-    (queryZaiQuota as any).mockResolvedValueOnce({
-      success: true,
-      label: "Z.ai",
-      windows: {
-        fiveHour: { percentRemaining: 85, resetTimeIso: "2026-01-01T00:00:00.000Z" },
-        weekly: { percentRemaining: 45, resetTimeIso: "2026-01-02T00:00:00.000Z" },
-        mcp: { percentRemaining: 70, resetTimeIso: "2026-01-03T00:00:00.000Z" },
-      },
-    });
-
-    const out = await zaiProvider.fetch({ config: { formatStyle: "grouped" } } as any);
+    const out = await zaiProvider.fetch({} as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
         name: "Z.ai 5h",
         group: "Z.ai",
         label: "5h:",
-        percentRemaining: 85,
+        percentRemaining: 80,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
       },
       {
         name: "Z.ai Weekly",
         group: "Z.ai",
         label: "Weekly:",
-        percentRemaining: 45,
+        percentRemaining: 30,
         resetTimeIso: "2026-01-02T00:00:00.000Z",
       },
       {
         name: "Z.ai MCP",
         group: "Z.ai",
         label: "MCP:",
-        percentRemaining: 70,
+        percentRemaining: 90,
         resetTimeIso: "2026-01-03T00:00:00.000Z",
       },
     ]);
+    expect(out.presentation).toEqual({
+      classicStrategy: "collapse_worst",
+      classicDisplayName: "Z.ai",
+    });
   });
 
   it("maps errors into toast errors", async () => {

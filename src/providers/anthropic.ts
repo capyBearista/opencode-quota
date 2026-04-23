@@ -56,41 +56,25 @@ export const anthropicProvider: QuotaProvider = {
       return attemptedErrorResult("Claude", result.error);
     }
 
-    const style = ctx.config?.formatStyle ?? "classic";
-
-    if (style === "grouped") {
-      const entries: QuotaToastEntry[] = [
-        {
-          name: "Claude 5h",
-          group: "Claude",
-          label: "5-hour:",
-          percentRemaining: result.five_hour.percentRemaining,
-          resetTimeIso: result.five_hour.resetTimeIso,
-        },
-        {
-          name: "Claude 7d",
-          group: "Claude",
-          label: "7-day:",
-          percentRemaining: result.seven_day.percentRemaining,
-          resetTimeIso: result.seven_day.resetTimeIso,
-        },
-      ];
-
-      return attemptedResult(entries);
-    }
-
-    // Classic style: show the worse of the two windows.
-    const worst =
-      result.five_hour.percentRemaining <= result.seven_day.percentRemaining
-        ? { name: "Claude 5h", ...result.five_hour }
-        : { name: "Claude 7d", ...result.seven_day };
-
-    return attemptedResult([
+    const entries: QuotaToastEntry[] = [
       {
-        name: worst.name,
-        percentRemaining: worst.percentRemaining,
-        resetTimeIso: worst.resetTimeIso,
+        name: "Claude 5h",
+        group: "Claude",
+        label: "5-hour:",
+        percentRemaining: result.five_hour.percentRemaining,
+        resetTimeIso: result.five_hour.resetTimeIso,
       },
-    ]);
+      {
+        name: "Claude 7d",
+        group: "Claude",
+        label: "7-day:",
+        percentRemaining: result.seven_day.percentRemaining,
+        resetTimeIso: result.seven_day.resetTimeIso,
+      },
+    ];
+
+    return attemptedResult(entries, [], {
+      classicStrategy: "collapse_worst",
+    });
   },
 };

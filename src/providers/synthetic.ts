@@ -29,26 +29,16 @@ function formatSyntheticSummary(window: SyntheticQuotaWindow, currency = false):
 
 function toSyntheticEntry(params: {
   window: SyntheticQuotaWindow;
-  style: "classic" | "grouped";
   suffix: "5h" | "Weekly";
   label: "5h:" | "Weekly:";
   currency?: boolean;
 }): QuotaToastEntry {
   const right = formatSyntheticSummary(params.window, params.currency);
 
-  if (params.style === "grouped") {
-    return {
-      name: `Synthetic ${params.suffix}`,
-      group: "Synthetic",
-      label: params.label,
-      percentRemaining: params.window.percentRemaining,
-      right,
-      resetTimeIso: params.window.resetTimeIso,
-    };
-  }
-
   return {
     name: `Synthetic ${params.suffix}`,
+    group: "Synthetic",
+    label: params.label,
     percentRemaining: params.window.percentRemaining,
     right,
     resetTimeIso: params.window.resetTimeIso,
@@ -86,22 +76,25 @@ export const syntheticProvider: QuotaProvider = {
       return attemptedErrorResult("Synthetic", result.error);
     }
 
-    const style = ctx.config.formatStyle ?? "classic";
-
-    return attemptedResult([
+    return attemptedResult(
+      [
       toSyntheticEntry({
         window: result.windows.fiveHour,
-        style,
         suffix: "5h",
         label: "5h:",
       }),
       toSyntheticEntry({
         window: result.windows.weekly,
-        style,
         suffix: "Weekly",
         label: "Weekly:",
         currency: true,
       }),
-    ]);
+      ],
+      [],
+      {
+        classicStrategy: "preserve",
+        classicShowRight: true,
+      },
+    );
   },
 };

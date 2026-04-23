@@ -27,7 +27,7 @@ describe("cursor provider", () => {
     });
 
     const out = await cursorProvider.fetch({
-      config: { cursorPlan: "none", formatStyle: "grouped" },
+      config: { cursorPlan: "none" },
     } as any);
     expectNotAttempted(out);
   });
@@ -43,7 +43,7 @@ describe("cursor provider", () => {
     });
 
     const out = await cursorProvider.fetch({
-      config: { cursorPlan: "pro", formatStyle: "grouped" },
+      config: { cursorPlan: "pro" },
     } as any);
 
     expectAttemptedWithNoErrors(out);
@@ -60,9 +60,13 @@ describe("cursor provider", () => {
       label: "Auto+Composer:",
       value: "$1.25 used",
     });
+    expect(out.presentation).toEqual({
+      classicStrategy: "first",
+      classicShowRight: false,
+    });
   });
 
-  it("renders a classic value-only entry when no included api budget is configured", async () => {
+  it("renders a canonical total-usage value row first when no included api budget is configured", async () => {
     const { getCurrentCursorUsageSummary } = await import("../src/lib/cursor-usage.js");
     (getCurrentCursorUsageSummary as any).mockResolvedValue({
       window: { resetTimeIso: "2026-03-01T00:00:00.000Z" },
@@ -73,7 +77,7 @@ describe("cursor provider", () => {
     });
 
     const out = await cursorProvider.fetch({
-      config: { cursorPlan: "none", formatStyle: "classic" },
+      config: { cursorPlan: "none" },
     } as any);
 
     expectAttemptedWithNoErrors(out);
@@ -81,7 +85,17 @@ describe("cursor provider", () => {
       {
         kind: "value",
         name: "Cursor",
+        group: "Cursor",
+        label: "Usage:",
         value: "$1.75 used this cycle",
+        resetTimeIso: "2026-03-01T00:00:00.000Z",
+      },
+      {
+        kind: "value",
+        name: "Cursor Auto+Composer",
+        group: "Cursor",
+        label: "Auto+Composer:",
+        value: "$1.25 used",
         resetTimeIso: "2026-03-01T00:00:00.000Z",
       },
     ]);
@@ -98,7 +112,7 @@ describe("cursor provider", () => {
     });
 
     const out = await cursorProvider.fetch({
-      config: { cursorPlan: "pro", formatStyle: "classic" },
+      config: { cursorPlan: "pro" },
     } as any);
 
     expect(out.attempted).toBe(true);
@@ -106,7 +120,17 @@ describe("cursor provider", () => {
       {
         kind: "value",
         name: "Cursor API (Pro)",
+        group: "Cursor (Pro)",
+        label: "API:",
         value: "$2.00/$20.00 used (partial)",
+        resetTimeIso: "2026-03-01T00:00:00.000Z",
+      },
+      {
+        kind: "value",
+        name: "Cursor Auto+Composer",
+        group: "Cursor (Pro)",
+        label: "Auto+Composer:",
+        value: "$0.00 used",
         resetTimeIso: "2026-03-01T00:00:00.000Z",
       },
     ]);

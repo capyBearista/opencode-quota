@@ -79,11 +79,20 @@ export interface SessionTokensData {
   totalOutput: number;
 }
 
+export type QuotaProviderClassicStrategy = "preserve" | "collapse_worst" | "first";
+
+export interface QuotaProviderPresentation {
+  classicStrategy: QuotaProviderClassicStrategy;
+  classicDisplayName?: string;
+  classicShowRight?: boolean;
+}
+
 export interface QuotaProviderResult {
   /** True when provider had enough configuration to attempt a query. */
   attempted: boolean;
   entries: QuotaToastEntry[];
   errors: QuotaToastError[];
+  presentation?: QuotaProviderPresentation;
 }
 
 export interface QuotaProviderContext {
@@ -100,7 +109,6 @@ export interface QuotaProviderContext {
     cursorPlan: CursorQuotaPlan;
     cursorIncludedApiUsd?: number;
     cursorBillingCycleStartDay?: number;
-    formatStyle?: "classic" | "grouped";
     onlyCurrentModel?: boolean;
     currentModel?: string;
     currentProviderID?: string;

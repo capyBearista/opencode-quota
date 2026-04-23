@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { rm } from "fs/promises";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COMMAND_HANDLED_SENTINEL } from "../src/lib/command-handled.js";
 import { DEFAULT_CONFIG } from "../src/lib/types.js";
@@ -15,6 +16,8 @@ import {
   getToastMessage,
   seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
+
+const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-plugin-quota-command-tests";
 
 const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
@@ -53,8 +56,17 @@ vi.mock("../src/lib/alibaba-auth.js", () =>
   createAlibabaAuthModuleMock(mocks.resolveAlibabaCodingPlanAuthCached),
 );
 
+vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
+  getOpencodeRuntimeDirs: () => ({
+    dataDir: `${TEST_RUNTIME_ROOT}/data`,
+    configDir: `${TEST_RUNTIME_ROOT}/config`,
+    cacheDir: `${TEST_RUNTIME_ROOT}/cache`,
+    stateDir: `${TEST_RUNTIME_ROOT}/state`,
+  }),
+}));
+
 describe("/quota command behavior", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     seedDefaultPluginBootstrapMocks(mocks, {
       configOverrides: {
         enabled: true,
@@ -64,8 +76,17 @@ describe("/quota command behavior", () => {
       },
       resetPluginState: true,
     });
+    await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
+    const { __resetQuotaStateForTests } = await import("../src/lib/quota-state.js");
+    __resetQuotaStateForTests();
     mocks.resolveQwenLocalPlanCached.mockResolvedValue({ state: "none" });
     mocks.resolveAlibabaCodingPlanAuthCached.mockResolvedValue({ state: "none" });
+  });
+
+  afterEach(async () => {
+    const { __resetQuotaStateForTests } = await import("../src/lib/quota-state.js");
+    __resetQuotaStateForTests();
+    await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
   });
 
   it("applies pricing snapshot selection from config on first use", async () => {
@@ -543,7 +564,7 @@ describe("/quota command behavior", () => {
     expect(injected).not.toContain("Providers detected");
   });
 
-  it("does not reuse cached /quota output after the current model changes in the same session", async () => {
+  it("does not reuse shared /quota output after the current model changes in the same session", async () => {
     mocks.loadConfig.mockResolvedValueOnce({
       ...DEFAULT_CONFIG,
       enabled: true,
@@ -599,11 +620,56 @@ describe("/quota command behavior", () => {
     expect(secondInjected).not.toContain("95% left");
   });
 
-  it("uses one session snapshot for both /quota cache keys and rendered output", async () => {
+  it("reuses shared quota-state across /quota sessions when render context matches", async () => {
+    mocks.loadConfig.mockResolvedValueOnce({
+      ...DEFAULT_CONFIG,
+      enabled: true,
+      onlyCurrentModel: false,
+      showOnQuestion: false,
+      showSessionTokens: false,
+      minIntervalMs: 60_000,
+    });
+
+    const provider = {
+      id: "openai",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [{ name: "OpenAI Pro", percentRemaining: 95 }],
+        errors: [],
+      }),
+    };
+    mocks.getProviders.mockReturnValue([provider]);
+
+    const { QuotaToastPlugin } = await import("../src/plugin.js");
+    const client = createClient();
+    const hooks = await QuotaToastPlugin({ client } as any);
+
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "session-a",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
+    await expect(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "session-b",
+      } as any),
+    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
+
+    expect(provider.fetch).toHaveBeenCalledTimes(1);
+    expect(getPromptText(client, 0)).toContain("95% left");
+    expect(getPromptText(client, 1)).toContain("95% left");
+  });
+
+  it("keys toast throttling by session render context so sessions do not share cached output", async () => {
     mocks.loadConfig.mockResolvedValueOnce({
       ...DEFAULT_CONFIG,
       enabled: true,
       onlyCurrentModel: true,
+      showOnIdle: true,
+      showOnCompact: false,
       showOnQuestion: false,
       showSessionTokens: false,
       minIntervalMs: 60_000,
@@ -622,39 +688,34 @@ describe("/quota command behavior", () => {
     mocks.getProviders.mockReturnValue([provider]);
 
     const { QuotaToastPlugin } = await import("../src/plugin.js");
-    const client = createClient({ modelID: "openai/gpt-5", providerID: "openai" });
-    let sessionReadCount = 0;
-    client.session.get = vi.fn().mockImplementation(async () => {
-      sessionReadCount += 1;
-      if (sessionReadCount === 3) {
-        return { data: { modelID: "openai/gpt-4.1", providerID: "openai" } };
+    const client = createClient();
+    client.session.get = vi.fn().mockImplementation(async ({ path }: any) => {
+      if (path.id === "session-a") {
+        return { data: { modelID: "openai/gpt-5", providerID: "openai" } };
       }
-      return { data: { modelID: "openai/gpt-5", providerID: "openai" } };
+      return { data: { modelID: "openai/gpt-4.1", providerID: "openai" } };
     });
 
     const hooks = await QuotaToastPlugin({ client } as any);
 
-    await expect(
-      hooks["command.execute.before"]?.({
-        command: "quota",
-        sessionID: "session-snapshot-race",
-      } as any),
-    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
-    await expect(
-      hooks["command.execute.before"]?.({
-        command: "quota",
-        sessionID: "session-snapshot-race",
-      } as any),
-    ).rejects.toThrow(COMMAND_HANDLED_SENTINEL);
+    await hooks.event?.({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "session-a" },
+      },
+    } as any);
+    await hooks.event?.({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "session-b" },
+      },
+    } as any);
 
-    expect(client.session.prompt).toHaveBeenCalledTimes(2);
-    const firstInjected = getPromptText(client);
-    const secondInjected = getPromptText(client, 1);
-
-    expect(firstInjected).toContain("openai/gpt-5");
-    expect(secondInjected).toContain("openai/gpt-5");
-    expect(firstInjected).not.toContain("openai/gpt-4.1");
-    expect(secondInjected).not.toContain("openai/gpt-4.1");
+    expect(provider.fetch).toHaveBeenCalledTimes(2);
+    expect(getToastMessage(client, 0)).toContain("openai/gpt-5");
+    expect(getToastMessage(client, 1)).toContain("openai/gpt-4.1");
+    expect(getToastMessage(client, 0)).not.toContain("openai/gpt-4.1");
+    expect(getToastMessage(client, 1)).not.toContain("openai/gpt-5");
   });
 
   it("keeps concurrent /quota session-token output isolated per session", async () => {
@@ -707,8 +768,16 @@ describe("/quota command behavior", () => {
       sessionID: "session-b",
     } as any);
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (
+        mocks.fetchSessionTokensForDisplay.mock.calls.length === 2 &&
+        typeof resolveSessionA === "function" &&
+        typeof resolveSessionB === "function"
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
     expect(mocks.fetchSessionTokensForDisplay).toHaveBeenCalledTimes(2);
     expect(resolveSessionA).toBeTypeOf("function");
@@ -749,7 +818,7 @@ describe("/quota command behavior", () => {
     expect(sessionBOutput).not.toContain("session-a-model");
   });
 
-  it("bypasses stale /quota cache for qwen local request-plan sessions", async () => {
+  it("keeps qwen local request-plan quota live across repeated /quota commands", async () => {
     const provider = {
       id: "qwen-code",
       isAvailable: vi.fn().mockResolvedValue(true),
@@ -794,7 +863,7 @@ describe("/quota command behavior", () => {
     expect(latest).toContain("80% left");
   });
 
-  it("bypasses stale /quota cache for alibaba local request-plan sessions", async () => {
+  it("keeps alibaba local request-plan quota live across repeated /quota commands", async () => {
     const provider = {
       id: "alibaba-coding-plan",
       isAvailable: vi.fn().mockResolvedValue(true),
@@ -840,7 +909,7 @@ describe("/quota command behavior", () => {
     expect(latest).toContain("60% left");
   });
 
-  it("bypasses stale /quota cache for cursor local-usage sessions", async () => {
+  it("keeps cursor local usage live across repeated /quota commands", async () => {
     const provider = {
       id: "cursor",
       isAvailable: vi.fn().mockResolvedValue(true),

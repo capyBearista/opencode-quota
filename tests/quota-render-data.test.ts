@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rm } from "fs/promises";
+
+const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-render-data-tests";
 
 const { mockProviders } = vi.hoisted(() => ({
   mockProviders: [] as any[],
@@ -8,16 +11,42 @@ vi.mock("../src/providers/registry.js", () => ({
   getProviders: () => mockProviders,
 }));
 
+vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
+  getOpencodeRuntimeDirs: () => ({
+    dataDir: `${TEST_RUNTIME_ROOT}/data`,
+    configDir: `${TEST_RUNTIME_ROOT}/config`,
+    cacheDir: `${TEST_RUNTIME_ROOT}/cache`,
+    stateDir: `${TEST_RUNTIME_ROOT}/state`,
+  }),
+}));
+
 import {
   collectQuotaRenderData,
   collectQuotaStatusLiveProbes,
 } from "../src/lib/quota-render-data.js";
+import { __resetQuotaStateForTests } from "../src/lib/quota-state.js";
 import { DEFAULT_CONFIG } from "../src/lib/types.js";
 
-describe("collectQuotaRenderData availability handling", () => {
-  afterEach(() => {
+const TEST_CLIENT = {
+  config: {
+    providers: async () => ({ data: { providers: [] } }),
+    get: async () => ({ data: {} }),
+  },
+};
+
+describe("collectQuotaRenderData shared quota state", () => {
+  beforeEach(async () => {
     mockProviders.length = 0;
     vi.restoreAllMocks();
+    __resetQuotaStateForTests();
+    await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
+  });
+
+  afterEach(async () => {
+    mockProviders.length = 0;
+    vi.restoreAllMocks();
+    __resetQuotaStateForTests();
+    await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
   });
 
   it("treats a thrown availability probe as unavailable instead of rejecting the whole render", async () => {
@@ -31,32 +60,35 @@ describe("collectQuotaRenderData availability handling", () => {
       isAvailable: vi.fn().mockResolvedValue(true),
       fetch: vi.fn().mockResolvedValue({
         attempted: true,
-        entries: [{ name: "OpenAI", percentRemaining: 75 }],
+        entries: [
+          {
+            name: "OpenAI (Pro) Hourly",
+            group: "OpenAI (Pro)",
+            label: "Hourly:",
+            percentRemaining: 75,
+          },
+        ],
         errors: [],
+        presentation: {
+          classicStrategy: "collapse_worst",
+          classicDisplayName: "OpenAI (Pro)",
+        },
       }),
     };
 
     mockProviders.push(failingProvider, workingProvider);
 
     const result = await collectQuotaRenderData({
-      client: {
-        config: {
-          providers: async () => ({ data: { providers: [] } }),
-          get: async () => ({ data: {} }),
-        },
-      },
+      client: TEST_CLIENT,
       config: {
         ...DEFAULT_CONFIG,
         enabledProviders: ["copilot", "openai"],
         showSessionTokens: false,
       },
-      providerFetchCache: new Map(),
       surfaceExplicitProviderIssues: true,
       formatStyle: "classic",
     });
 
-    expect(failingProvider.isAvailable).toHaveBeenCalledOnce();
-    expect(workingProvider.isAvailable).toHaveBeenCalledOnce();
     expect(workingProvider.fetch).toHaveBeenCalledOnce();
     expect(result.availability).toEqual([
       { provider: failingProvider, ok: false },
@@ -64,7 +96,7 @@ describe("collectQuotaRenderData availability handling", () => {
     ]);
     expect(result.active).toEqual([workingProvider]);
     expect(result.data).toEqual({
-      entries: [{ name: "OpenAI", percentRemaining: 75 }],
+      entries: [{ name: "OpenAI (Pro)", percentRemaining: 75 }],
       errors: [{ label: "Copilot", message: "Unavailable (not detected)" }],
       sessionTokens: undefined,
     });
@@ -80,18 +112,12 @@ describe("collectQuotaRenderData availability handling", () => {
     mockProviders.push(failingProvider);
 
     const result = await collectQuotaRenderData({
-      client: {
-        config: {
-          providers: async () => ({ data: { providers: [] } }),
-          get: async () => ({ data: {} }),
-        },
-      },
+      client: TEST_CLIENT,
       config: {
         ...DEFAULT_CONFIG,
         enabledProviders: ["copilot"],
         showSessionTokens: false,
       },
-      providerFetchCache: new Map(),
       surfaceExplicitProviderIssues: true,
       formatStyle: "classic",
     });
@@ -115,18 +141,12 @@ describe("collectQuotaRenderData availability handling", () => {
     mockProviders.push(failingProvider);
 
     const result = await collectQuotaRenderData({
-      client: {
-        config: {
-          providers: async () => ({ data: { providers: [] } }),
-          get: async () => ({ data: {} }),
-        },
-      },
+      client: TEST_CLIENT,
       config: {
         ...DEFAULT_CONFIG,
         enabledProviders: "auto",
         showSessionTokens: false,
       },
-      providerFetchCache: new Map(),
       surfaceExplicitProviderIssues: true,
       formatStyle: "classic",
     });
@@ -137,130 +157,217 @@ describe("collectQuotaRenderData availability handling", () => {
     expect(result.data).toBeNull();
   });
 
-  it("returns snapshot-owned weekly rows so sidebar/runtime mutations cannot poison future live fetches", async () => {
-    const sharedResult = {
-      attempted: true,
-      entries: [
-        {
-          name: "Cursor Weekly",
-          percentRemaining: 8,
-          right: "22/24",
-          resetTimeIso: "2099-01-01T00:00:00.000Z",
+  it("reuses one canonical provider snapshot across classic and grouped renders without mutation bleed", async () => {
+    const syntheticProvider = {
+      id: "synthetic",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [
+          {
+            name: "Synthetic 5h",
+            group: "Synthetic",
+            label: "5h:",
+            percentRemaining: 75,
+            right: "26/100",
+            resetTimeIso: "2026-01-20T18:12:03.000Z",
+          },
+          {
+            name: "Synthetic Weekly",
+            group: "Synthetic",
+            label: "Weekly:",
+            percentRemaining: 8,
+            right: "$22/$24",
+            resetTimeIso: "2026-01-27T18:12:03.000Z",
+          },
+        ],
+        errors: [],
+        presentation: {
+          classicStrategy: "preserve",
+          classicShowRight: true,
         },
-      ],
-      errors: [],
+      }),
     };
+
+    mockProviders.push(syntheticProvider);
+
+    const baseParams = {
+      client: TEST_CLIENT,
+      config: {
+        ...DEFAULT_CONFIG,
+        enabledProviders: ["synthetic"],
+        minIntervalMs: 60_000,
+        showSessionTokens: false,
+      },
+      surfaceExplicitProviderIssues: true,
+    };
+
+    const classic = await collectQuotaRenderData({
+      ...baseParams,
+      formatStyle: "classic",
+    });
+    expect(classic.data?.entries).toEqual([
+      {
+        name: "Synthetic 5h",
+        percentRemaining: 75,
+        right: "26/100",
+        resetTimeIso: "2026-01-20T18:12:03.000Z",
+      },
+      {
+        name: "Synthetic Weekly",
+        percentRemaining: 8,
+        right: "$22/$24",
+        resetTimeIso: "2026-01-27T18:12:03.000Z",
+      },
+    ]);
+
+    const firstEntry = classic.data?.entries[0];
+    if (!firstEntry || firstEntry.kind === "value") {
+      throw new Error("expected classic synthetic percent entry");
+    }
+    firstEntry.right = "0/500";
+    firstEntry.percentRemaining = 100;
+
+    const grouped = await collectQuotaRenderData({
+      ...baseParams,
+      formatStyle: "grouped",
+    });
+
+    expect(grouped.data?.entries).toEqual([
+      {
+        name: "Synthetic 5h",
+        group: "Synthetic",
+        label: "5h:",
+        percentRemaining: 75,
+        right: "26/100",
+        resetTimeIso: "2026-01-20T18:12:03.000Z",
+      },
+      {
+        name: "Synthetic Weekly",
+        group: "Synthetic",
+        label: "Weekly:",
+        percentRemaining: 8,
+        right: "$22/$24",
+        resetTimeIso: "2026-01-27T18:12:03.000Z",
+      },
+    ]);
+    expect(syntheticProvider.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps live-local providers uncached and returns snapshot-owned entries", async () => {
     const cursorProvider = {
       id: "cursor",
       isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue(sharedResult),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [
+          {
+            name: "Cursor API (Pro)",
+            group: "Cursor (Pro)",
+            label: "API:",
+            right: "$5.00/$20.00",
+            percentRemaining: 75,
+            resetTimeIso: "2026-03-01T00:00:00.000Z",
+          },
+          {
+            kind: "value",
+            name: "Cursor Auto+Composer",
+            group: "Cursor (Pro)",
+            label: "Auto+Composer:",
+            value: "$1.25 used",
+            resetTimeIso: "2026-03-01T00:00:00.000Z",
+          },
+        ],
+        errors: [],
+        presentation: {
+          classicStrategy: "first",
+          classicShowRight: false,
+        },
+      }),
     };
 
     mockProviders.push(cursorProvider);
 
-    const providerFetchCache = new Map();
     const params = {
-      client: {
-        config: {
-          providers: async () => ({ data: { providers: [] } }),
-          get: async () => ({ data: {} }),
-        },
-      },
+      client: TEST_CLIENT,
       config: {
         ...DEFAULT_CONFIG,
         enabledProviders: ["cursor"],
+        minIntervalMs: 60_000,
         showSessionTokens: false,
       },
-      providerFetchCache,
       surfaceExplicitProviderIssues: true,
       formatStyle: "classic" as const,
     };
 
     const first = await collectQuotaRenderData(params);
     const firstEntry = first.data?.entries[0];
-    expect(firstEntry).toBeDefined();
     if (!firstEntry || firstEntry.kind === "value") {
-      throw new Error("expected percent entry for cursor weekly test");
+      throw new Error("expected classic cursor percent entry");
     }
-
-    firstEntry.right = "0/500";
-    firstEntry.percentRemaining = 100;
+    firstEntry.percentRemaining = 1;
 
     const second = await collectQuotaRenderData(params);
-    const secondEntry = second.data?.entries[0];
-    expect(secondEntry).toBeDefined();
-    if (!secondEntry || secondEntry.kind === "value") {
-      throw new Error("expected percent entry for cursor weekly test");
-    }
-
-    expect(secondEntry.right).toBe("22/24");
-    expect(secondEntry.percentRemaining).toBe(8);
-    expect(sharedResult.entries[0]?.right).toBe("22/24");
-    expect(sharedResult.entries[0]?.percentRemaining).toBe(8);
+    expect(second.data?.entries).toEqual([
+      {
+        name: "Cursor API (Pro)",
+        percentRemaining: 75,
+        resetTimeIso: "2026-03-01T00:00:00.000Z",
+      },
+    ]);
     expect(cursorProvider.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("collects per-provider live probes in order, forces classic formatting, and bypasses stale shared fetch cache entries", async () => {
+  it("collects live probes in order, projects them to classic rows, and bypasses shared cache reuse", async () => {
     const syntheticProvider = {
       id: "synthetic",
       isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockImplementation(async ({ config }: any) => {
-        expect(config.formatStyle).toBe("classic");
-        return {
-          attempted: true,
-          entries: [
-            {
-              name: "Synthetic",
-              percentRemaining: 84,
-              right: "8/50",
-              resetTimeIso: "2026-04-21T18:00:00.000Z",
-            },
-          ],
-          errors: [],
-        };
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [
+          {
+            name: "Synthetic Weekly",
+            group: "Synthetic",
+            label: "Weekly:",
+            percentRemaining: 84,
+            right: "$8/$50",
+            resetTimeIso: "2026-04-21T18:00:00.000Z",
+          },
+        ],
+        errors: [],
+        presentation: {
+          classicStrategy: "preserve",
+          classicShowRight: true,
+        },
       }),
     };
     const openaiProvider = {
       id: "openai",
       isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockImplementation(async ({ config }: any) => {
-        expect(config.formatStyle).toBe("classic");
-        return {
-          attempted: true,
-          entries: [],
-          errors: [{ label: "OpenAI", message: "Temporary outage" }],
-        };
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [],
+        errors: [{ label: "OpenAI", message: "Temporary outage" }],
+        presentation: {
+          classicStrategy: "collapse_worst",
+          classicDisplayName: "OpenAI",
+        },
       }),
     };
 
-    const providerFetchCache = new Map();
-    const client = {
+    const params = {
+      client: TEST_CLIENT,
       config: {
-        providers: async () => ({ data: { providers: [] } }),
-        get: async () => ({ data: {} }),
+        ...DEFAULT_CONFIG,
+        minIntervalMs: 60_000,
+        showSessionTokens: false,
       },
-    };
-    const config = {
-      ...DEFAULT_CONFIG,
-      formatStyle: "grouped" as const,
-      minIntervalMs: 60_000,
-      showSessionTokens: false,
+      formatStyle: "classic" as const,
+      providers: [syntheticProvider, openaiProvider],
     };
 
-    const first = await collectQuotaStatusLiveProbes({
-      client,
-      config,
-      formatStyle: "classic",
-      providers: [syntheticProvider, openaiProvider],
-      providerFetchCache,
-    });
-    const second = await collectQuotaStatusLiveProbes({
-      client,
-      config,
-      formatStyle: "classic",
-      providers: [syntheticProvider, openaiProvider],
-      providerFetchCache,
-    });
+    const first = await collectQuotaStatusLiveProbes(params);
+    const second = await collectQuotaStatusLiveProbes(params);
 
     expect(first).toEqual([
       {
@@ -269,13 +376,17 @@ describe("collectQuotaRenderData availability handling", () => {
           attempted: true,
           entries: [
             {
-              name: "Synthetic",
+              name: "Synthetic Weekly",
               percentRemaining: 84,
-              right: "8/50",
+              right: "$8/$50",
               resetTimeIso: "2026-04-21T18:00:00.000Z",
             },
           ],
           errors: [],
+          presentation: {
+            classicStrategy: "preserve",
+            classicShowRight: true,
+          },
         },
       },
       {
@@ -284,6 +395,10 @@ describe("collectQuotaRenderData availability handling", () => {
           attempted: true,
           entries: [],
           errors: [{ label: "OpenAI", message: "Temporary outage" }],
+          presentation: {
+            classicStrategy: "collapse_worst",
+            classicDisplayName: "OpenAI",
+          },
         },
       },
     ]);

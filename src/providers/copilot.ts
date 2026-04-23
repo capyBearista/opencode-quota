@@ -8,7 +8,7 @@ import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from ".
 import { queryCopilotQuota } from "../lib/copilot.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import type { CopilotEnterpriseUsageResult, CopilotOrganizationUsageResult } from "../lib/types.js";
-import { notAttemptedResult } from "./result-helpers.js";
+import { attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 function formatBillingPeriod(period: { year: number; month: number }): string {
   return `${period.year}-${String(period.month).padStart(2, "0")}`;
@@ -59,7 +59,6 @@ export const copilotProvider: QuotaProvider = {
 
   async fetch(_ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
     const result = await queryCopilotQuota();
-    const style = _ctx.config?.formatStyle ?? "classic";
 
     if (!result) {
       return notAttemptedResult();
@@ -73,59 +72,45 @@ export const copilotProvider: QuotaProvider = {
       };
     }
 
-    return {
-      attempted: true,
-      entries:
-        result.mode === "organization_usage" || result.mode === "enterprise_usage"
-          ? [
-              style === "grouped"
-                ? {
-                  kind: "value",
-                  name: "Copilot",
-                  group: getCopilotGroup(result.mode),
-                  label: "Usage:",
-                  value: formatManagedUsageValue(result),
-                  resetTimeIso: result.resetTimeIso,
-                }
-                : {
-                  kind: "value",
-                  name:
-                    result.mode === "enterprise_usage"
-                      ? `Copilot Enterprise (${result.enterprise})`
-                      : `Copilot Org (${result.organization})`,
-                  value:
-                    result.mode === "enterprise_usage"
-                      ? [
-                        `${result.used} used`,
-                        formatBillingPeriod(result.period),
-                        ...(result.organization ? [`org=${result.organization}`] : []),
-                        ...(result.username ? [`user=${result.username}`] : []),
-                      ].join(" | ")
-                      : [
-                        `${result.used} used`,
-                        formatBillingPeriod(result.period),
-                        ...(result.username ? [`user=${result.username}`] : []),
-                      ].join(" | "),
-                  resetTimeIso: result.resetTimeIso,
-                },
-            ]
-          : [
-              style === "grouped"
-                ? {
-                  name: "Copilot",
-                  group: getCopilotGroup(result.mode),
-                  label: "Quota:",
-                  right: `${result.used}/${result.total}`,
-                  percentRemaining: result.percentRemaining,
-                  resetTimeIso: result.resetTimeIso,
-                }
-                : {
-                  name: "Copilot",
-                  percentRemaining: result.percentRemaining,
-                  resetTimeIso: result.resetTimeIso,
-                },
-            ],
-      errors: [],
-    };
+    if (result.mode === "organization_usage" || result.mode === "enterprise_usage") {
+      return attemptedResult(
+        [
+          {
+            kind: "value",
+            name: "Copilot",
+            group: getCopilotGroup(result.mode),
+            label: "Usage:",
+            value: formatManagedUsageValue(result),
+            resetTimeIso: result.resetTimeIso,
+          },
+        ],
+        [],
+        {
+          classicStrategy: "first",
+          classicDisplayName:
+            result.mode === "enterprise_usage"
+              ? `Copilot Enterprise (${result.enterprise})`
+              : `Copilot Org (${result.organization})`,
+        },
+      );
+    }
+
+    return attemptedResult(
+      [
+        {
+          name: "Copilot",
+          group: getCopilotGroup(result.mode),
+          label: "Quota:",
+          right: `${result.used}/${result.total}`,
+          percentRemaining: result.percentRemaining,
+          resetTimeIso: result.resetTimeIso,
+        },
+      ],
+      [],
+      {
+        classicStrategy: "first",
+        classicShowRight: false,
+      },
+    );
   },
 };

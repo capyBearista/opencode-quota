@@ -1,64 +1,70 @@
 /**
- * Cache and throttling system for quota fetching
+ * Keyed cache and throttling system for rendered quota toasts.
  *
- * Implements:
- * - Throttling: Only fetch if minIntervalMs has passed since last fetch
- * - Caching: Store last toast message for immediate display
- * - Deduplication: Use inFlightPromise to prevent concurrent fetches
+ * This is presentation-only throttling:
+ * - Each cache key stores the last rendered toast string for that surface/session context
+ * - Only fetch if minIntervalMs has passed since the last fetch for that key
+ * - Deduplicate concurrent fetches per key
  */
 
 import type { CachedToast } from "./types.js";
 
-/** Cached toast data */
-let cachedToast: CachedToast | null = null;
+type CacheEntry = {
+  cachedToast: CachedToast | null;
+  inFlightPromise: Promise<string | null> | null;
+  lastFetchTime: number;
+};
 
-/** In-flight promise for deduplication */
-let inFlightPromise: Promise<string | null> | null = null;
+const cacheEntries = new Map<string, CacheEntry>();
 
-/** Timestamp of last fetch start */
-let lastFetchTime = 0;
+function getCacheEntry(cacheKey: string): CacheEntry {
+  const existing = cacheEntries.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+
+  const created: CacheEntry = {
+    cachedToast: null,
+    inFlightPromise: null,
+    lastFetchTime: 0,
+  };
+  cacheEntries.set(cacheKey, created);
+  return created;
+}
 
 /**
- * Get the cached toast message if still valid
- *
- * @param minIntervalMs - Minimum interval between fetches
- * @returns Cached message or null if stale/missing
+ * Get the cached toast message for a key if still valid.
  */
-export function getCachedToast(minIntervalMs: number): string | null {
-  if (!cachedToast) {
+export function getCachedToast(cacheKey: string, minIntervalMs: number): string | null {
+  const cacheEntry = cacheEntries.get(cacheKey);
+  if (!cacheEntry?.cachedToast) {
     return null;
   }
 
   const now = Date.now();
-  const age = now - cachedToast.timestamp;
+  const age = now - cacheEntry.cachedToast.timestamp;
 
-  // Return cached value if within throttle window
   if (age < minIntervalMs) {
-    return cachedToast.message;
+    return cacheEntry.cachedToast.message;
   }
 
   return null;
 }
 
 /**
- * Check if a new fetch should be initiated
- *
- * @param minIntervalMs - Minimum interval between fetches
- * @returns true if a fetch should be started
+ * Check if a new fetch should be initiated for a key.
  */
-export function shouldFetch(minIntervalMs: number): boolean {
+export function shouldFetch(cacheKey: string, minIntervalMs: number): boolean {
+  const cacheEntry = getCacheEntry(cacheKey);
   const now = Date.now();
-  return now - lastFetchTime >= minIntervalMs;
+  return now - cacheEntry.lastFetchTime >= minIntervalMs;
 }
 
 /**
- * Get or start a fetch operation with deduplication
- *
- * @param fetchFn - Function that performs the actual fetch
- * @param minIntervalMs - Minimum interval between fetches
- * @returns Promise resolving to toast message or null
+ * Get or start a fetch operation with keyed deduplication.
  */
 export async function getOrFetch(
+  cacheKey: string,
   fetchFn: () => Promise<string | null>,
   minIntervalMs: number,
 ): Promise<string | null> {
@@ -66,88 +72,89 @@ export async function getOrFetch(
     const message = await fetchFn();
     return { message, cache: true };
   };
-  return getOrFetchWithCacheControl(wrapped, minIntervalMs);
+  return getOrFetchWithCacheControl(cacheKey, wrapped, minIntervalMs);
 }
 
 /**
- * Get or start a fetch operation with deduplication and cache control.
+ * Get or start a fetch operation with keyed deduplication and cache control.
  *
  * This is useful when some results should be displayed but not cached
  * (e.g. transient "all providers failed" cases).
  */
 export async function getOrFetchWithCacheControl(
+  cacheKey: string,
   fetchFn: () => Promise<{ message: string | null; cache?: boolean }>,
   minIntervalMs: number,
 ): Promise<string | null> {
-  // Check cache first
-  const cached = getCachedToast(minIntervalMs);
+  const cacheEntry = getCacheEntry(cacheKey);
+
+  const cached = getCachedToast(cacheKey, minIntervalMs);
   if (cached !== null) {
     return cached;
   }
 
-  // If there's already a fetch in progress, wait for it
-  if (inFlightPromise) {
-    return inFlightPromise;
+  if (cacheEntry.inFlightPromise) {
+    return cacheEntry.inFlightPromise;
   }
 
-  // Check if we should start a new fetch
-  if (!shouldFetch(minIntervalMs)) {
-    // Within throttle window but cache is empty/stale
-    // Return cached message anyway if available
-    return cachedToast?.message ?? null;
+  if (!shouldFetch(cacheKey, minIntervalMs)) {
+    return cacheEntry.cachedToast?.message ?? null;
   }
 
-  // Start a new fetch
-  lastFetchTime = Date.now();
-  inFlightPromise = (async () => {
+  cacheEntry.lastFetchTime = Date.now();
+  cacheEntry.inFlightPromise = (async () => {
     try {
       const out = await fetchFn();
       const result = out.message;
       const cache = out.cache ?? true;
 
-      // If there is no message, don't throttle future fetches.
-      // This is important when users enable providers or connect accounts and
-      // want the toast to appear on the next trigger.
       if (result === null) {
-        lastFetchTime = 0;
+        cacheEntry.lastFetchTime = 0;
         return null;
       }
 
       if (!cache) {
-        // Display, but don't cache or throttle the next attempt.
-        lastFetchTime = 0;
+        cacheEntry.lastFetchTime = 0;
         return result;
       }
 
-      cachedToast = {
+      cacheEntry.cachedToast = {
         message: result,
         timestamp: Date.now(),
       };
 
       return result;
     } finally {
-      inFlightPromise = null;
+      cacheEntry.inFlightPromise = null;
+      if (!cacheEntry.cachedToast && cacheEntry.lastFetchTime === 0) {
+        cacheEntries.delete(cacheKey);
+      }
     }
   })();
 
-  return inFlightPromise;
+  return cacheEntry.inFlightPromise;
 }
 
 /**
- * Clear the cache (for testing or reset)
+ * Clear one keyed entry, or the whole keyed cache if no key is provided.
  */
-export function clearCache(): void {
-  cachedToast = null;
-  inFlightPromise = null;
-  lastFetchTime = 0;
+export function clearCache(cacheKey?: string): void {
+  if (cacheKey) {
+    cacheEntries.delete(cacheKey);
+    return;
+  }
+
+  cacheEntries.clear();
 }
 
 /**
- * Force update the cache with a new message
+ * Force update a keyed cache entry with a new message.
  */
-export function updateCache(message: string): void {
-  cachedToast = {
+export function updateCache(cacheKey: string, message: string): void {
+  const cacheEntry = getCacheEntry(cacheKey);
+  cacheEntry.cachedToast = {
     message,
     timestamp: Date.now(),
   };
+  cacheEntry.lastFetchTime = Date.now();
 }

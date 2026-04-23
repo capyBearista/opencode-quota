@@ -2,7 +2,6 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 
-import type { ProviderFetchCacheStore } from "./lib/quota-render-data.js";
 import type { SidebarPanelState } from "./lib/tui-panel-state.js";
 
 import { getSidebarPanelLines, shouldRenderSidebarPanel } from "./lib/tui-panel-state.js";
@@ -18,7 +17,6 @@ const REFRESH_INTERVAL_MS = 60_000;
 function SidebarContentView(props: {
   api: TuiPluginApi;
   sessionID: string;
-  providerFetchCache: ProviderFetchCacheStore;
 }) {
   const [panel, setPanel] = createSignal<SidebarPanelState>({
     status: "loading",
@@ -35,7 +33,6 @@ function SidebarContentView(props: {
     void loadSidebarPanel({
       api: props.api,
       sessionID: props.sessionID,
-      providerFetchCache: props.providerFetchCache,
     })
       .then((next) => {
         if (disposed || currentVersion !== loadVersion) return;
@@ -126,22 +123,11 @@ function SidebarContentView(props: {
 }
 
 const tui: TuiPlugin = async (api) => {
-  const providerFetchCache: ProviderFetchCacheStore = new Map();
-  api.lifecycle.onDispose(() => {
-    providerFetchCache.clear();
-  });
-
   api.slots.register({
     order: SIDEBAR_ORDER,
     slots: {
       sidebar_content(_ctx, props: { session_id: string }) {
-        return (
-          <SidebarContentView
-            api={api}
-            sessionID={props.session_id}
-            providerFetchCache={providerFetchCache}
-          />
-        );
+        return <SidebarContentView api={api} sessionID={props.session_id} />;
       },
     },
   });

@@ -35,10 +35,9 @@ export const qwenCodeProvider: QuotaProvider = {
     }
 
     const quota = computeQwenQuota({ state: await readQwenLocalQuotaState() });
-    const style = ctx.config.formatStyle ?? "classic";
 
-    if (style === "grouped") {
-      const entries: QuotaToastEntry[] = [
+    return attemptedResult(
+      [
         {
           name: "Qwen Free Daily",
           group: "Qwen (free)",
@@ -55,22 +54,12 @@ export const qwenCodeProvider: QuotaProvider = {
           percentRemaining: quota.rpm.percentRemaining,
           resetTimeIso: quota.rpm.resetTimeIso,
         },
-      ];
-
-      return attemptedResult(entries);
-    }
-
-    return attemptedResult([
+      ],
+      [],
       {
-        name: "Qwen Free Daily",
-        percentRemaining: quota.day.percentRemaining,
-        resetTimeIso: quota.day.resetTimeIso,
+        classicStrategy: "preserve",
+        classicShowRight: false,
       },
-      {
-        name: "Qwen Free RPM",
-        percentRemaining: quota.rpm.percentRemaining,
-        resetTimeIso: quota.rpm.resetTimeIso,
-      },
-    ]);
+    );
   },
 };

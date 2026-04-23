@@ -14,7 +14,7 @@ import {
 } from "../lib/cursor-pricing.js";
 import { inspectCursorOpenCodeIntegration } from "../lib/cursor-detection.js";
 import { getCurrentCursorUsageSummary } from "../lib/cursor-usage.js";
-import { notAttemptedResult } from "./result-helpers.js";
+import { attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 function buildCursorGroup(plan: string | null): string {
   return plan ? `Cursor (${plan})` : "Cursor";
@@ -70,95 +70,57 @@ export const cursorProvider: QuotaProvider = {
         ? [{ label: "Cursor", message: "Unknown Cursor model ids present in local history (see /quota_status)" }]
         : [];
     const hasPartialApiCoverage = usage.unknownModels.length > 0;
-
-    if ((ctx.config.formatStyle ?? "classic") === "grouped") {
-      const entries: QuotaToastEntry[] = [];
-
-      if (includedApiUsd !== undefined) {
-        if (hasPartialApiCoverage) {
-          entries.push({
-            kind: "value",
-            name: planLabel ? `Cursor API (${planLabel})` : "Cursor API",
-            group,
-            label: "API:",
-            value: buildCursorApiUsageValue({
-              costUsd: usage.api.costUsd,
-              includedApiUsd,
-              partial: true,
-            }),
-            resetTimeIso: usage.window.resetTimeIso,
-          });
-        } else {
-          entries.push({
-            name: planLabel ? `Cursor API (${planLabel})` : "Cursor API",
-            group,
-            label: "API:",
-            right: `${fmtUsdAmount(usage.api.costUsd)}/${fmtUsdAmount(includedApiUsd)}`,
-            percentRemaining: clampPercent(100 - (usage.api.costUsd / includedApiUsd) * 100),
-            resetTimeIso: usage.window.resetTimeIso,
-          });
-        }
-      } else {
-        entries.push({
-          kind: "value",
-          name: "Cursor API",
-          group,
-          label: "API:",
-          value: `${fmtUsdAmount(usage.api.costUsd)} used`,
-          resetTimeIso: usage.window.resetTimeIso,
-        });
-      }
-
-      if (usage.autoComposer.messageCount > 0 || includedApiUsd !== undefined) {
-        entries.push({
-          kind: "value",
-          name: "Cursor Auto+Composer",
-          group,
-          label: "Auto+Composer:",
-          value: `${fmtUsdAmount(usage.autoComposer.costUsd)} used`,
-          resetTimeIso: usage.window.resetTimeIso,
-        });
-      }
-
-      return { attempted: true, entries, errors };
-    }
+    const entries: QuotaToastEntry[] = [];
 
     if (includedApiUsd !== undefined) {
-      return {
-        attempted: true,
-        entries: [
-          hasPartialApiCoverage
-            ? {
-                kind: "value",
-                name: planLabel ? `Cursor API (${planLabel})` : "Cursor API",
-                value: buildCursorApiUsageValue({
-                  costUsd: usage.api.costUsd,
-                  includedApiUsd,
-                  partial: true,
-                }),
-                resetTimeIso: usage.window.resetTimeIso,
-              }
-            : {
-                name: planLabel ? `Cursor API (${planLabel})` : "Cursor API",
-                percentRemaining: clampPercent(100 - (usage.api.costUsd / includedApiUsd) * 100),
-                resetTimeIso: usage.window.resetTimeIso,
-              },
-        ],
-        errors,
-      };
+      entries.push(
+        hasPartialApiCoverage
+          ? {
+              kind: "value",
+              name: planLabel ? `Cursor API (${planLabel})` : "Cursor API",
+              group,
+              label: "API:",
+              value: buildCursorApiUsageValue({
+                costUsd: usage.api.costUsd,
+                includedApiUsd,
+                partial: true,
+              }),
+              resetTimeIso: usage.window.resetTimeIso,
+            }
+          : {
+              name: planLabel ? `Cursor API (${planLabel})` : "Cursor API",
+              group,
+              label: "API:",
+              right: `${fmtUsdAmount(usage.api.costUsd)}/${fmtUsdAmount(includedApiUsd)}`,
+              percentRemaining: clampPercent(100 - (usage.api.costUsd / includedApiUsd) * 100),
+              resetTimeIso: usage.window.resetTimeIso,
+            },
+      );
+    } else {
+      entries.push({
+        kind: "value",
+        name: "Cursor",
+        group,
+        label: "Usage:",
+        value: `${fmtUsdAmount(usage.total.costUsd)} used this cycle`,
+        resetTimeIso: usage.window.resetTimeIso,
+      });
     }
 
-    return {
-      attempted: true,
-      entries: [
-        {
-          kind: "value",
-          name: "Cursor",
-          value: `${fmtUsdAmount(usage.total.costUsd)} used this cycle`,
-          resetTimeIso: usage.window.resetTimeIso,
-        },
-      ],
-      errors,
-    };
+    if (usage.autoComposer.messageCount > 0 || includedApiUsd !== undefined) {
+      entries.push({
+        kind: "value",
+        name: "Cursor Auto+Composer",
+        group,
+        label: "Auto+Composer:",
+        value: `${fmtUsdAmount(usage.autoComposer.costUsd)} used`,
+        resetTimeIso: usage.window.resetTimeIso,
+      });
+    }
+
+    return attemptedResult(entries, errors, {
+      classicStrategy: "first",
+      classicShowRight: false,
+    });
   },
 };
