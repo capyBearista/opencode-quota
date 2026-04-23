@@ -71,7 +71,8 @@ export interface QuotaToastConfig {
 
   /**
    * If true, show the Session input/output tokens section in quota displays when session token data is available.
-   * Toasts and /quota keep per-model rows; the TUI sidebar uses a one-line total summary.
+   * Grouped layout keeps per-model rows on toast + sidebar; classic layout uses a one-line total summary.
+   * The `/quota` command keeps its detailed per-model rendering.
    */
   showSessionTokens: boolean;
 

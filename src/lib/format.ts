@@ -15,7 +15,10 @@ import {
   resolveDisplayedPercent,
 } from "./format-utils.js";
 import { formatQuotaRowsGrouped } from "./toast-format-grouped.js";
-import { renderSessionTokensLines } from "./session-tokens-format.js";
+import {
+  renderSessionTokensLines,
+  renderSidebarSessionTokenSummaryLines,
+} from "./session-tokens-format.js";
 
 export function formatQuotaRows(params: {
   version: string;
@@ -150,8 +153,11 @@ export function formatQuotaRows(params: {
     lines.push(`${err.label}: ${err.message}`);
   }
 
-  // Add session token summary (if data available and non-empty)
-  const tokenLines = renderSessionTokensLines(params.sessionTokens, { maxWidth });
+  // Add session token section (if data available and non-empty)
+  const tokenLines =
+    params.style === "grouped"
+      ? renderSessionTokensLines(params.sessionTokens, { maxWidth })
+      : renderSidebarSessionTokenSummaryLines(params.sessionTokens, { maxWidth });
   if (tokenLines.length > 0) {
     if (lines.length > 0) lines.push("");
     lines.push(...tokenLines);

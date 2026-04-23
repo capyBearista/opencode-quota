@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { formatQuotaRows } from "../src/lib/format.js";
+import { SESSION_TOKEN_SECTION_HEADING } from "../src/lib/session-tokens-format.js";
 
 describe("formatQuotaRows", () => {
   afterEach(() => {
@@ -283,6 +284,43 @@ describe("formatQuotaRows", () => {
     expect(out).toContain("→ [Google Antigravity] (acct)");
     expect(out).toContain("Claude:");
     expect(out).not.toContain("→ [Claude] (acct)");
+  });
+
+  it("renders classic session tokens as a one-line total summary", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "classic",
+      layout: { maxWidth: 36, narrowAt: 32, tinyAt: 20 },
+      entries: [],
+      sessionTokens: {
+        totalInput: 372,
+        totalOutput: 41,
+        models: [{ modelID: "openai/gpt-5.4-mini", input: 372, output: 41 }],
+      },
+    });
+
+    expect(out.split("\n")).toEqual([SESSION_TOKEN_SECTION_HEADING, "  372 in  41 out"]);
+    expect(out).not.toContain("openai/gpt-5.4-mini");
+  });
+
+  it("renders grouped session tokens with detailed per-model rows", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "grouped",
+      layout: { maxWidth: 36, narrowAt: 32, tinyAt: 20 },
+      entries: [],
+      sessionTokens: {
+        totalInput: 372,
+        totalOutput: 41,
+        models: [{ modelID: "openai/gpt-5.4-mini", input: 372, output: 41 }],
+      },
+    });
+
+    expect(out.split("\n")).toEqual([
+      SESSION_TOKEN_SECTION_HEADING,
+      "  openai/gpt-5.4-mini",
+      "    372 in  41 out",
+    ]);
   });
 
   it("does not change value-only rows when percentDisplayMode changes", () => {

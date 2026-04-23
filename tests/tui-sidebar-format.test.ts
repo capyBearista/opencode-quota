@@ -55,7 +55,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect(rendered).toContain("Err: Bad");
     expect(rendered).toContain(SESSION_TOKEN_SECTION_HEADING);
     expect(rendered).toContain("12 in  34 out");
-    expect(rendered).not.toContain("gpt-5");
+    expect(rendered).toContain("gpt-5");
   });
 
   it("uses the fixed sidebar layout instead of toast layout settings", () => {
@@ -247,7 +247,38 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect((barLine.match(/█/g) ?? [])).toHaveLength(5);
   });
 
-  it("renders sidebar session tokens as a standalone one-line summary", () => {
+  it("renders grouped sidebar session tokens with detailed per-model rows", () => {
+    const lines = buildSidebarQuotaPanelLines({
+      config: {
+        formatStyle: "grouped",
+        percentDisplayMode: "remaining",
+      },
+      data: {
+        entries: [],
+        errors: [],
+        sessionTokens: {
+          totalInput: 372,
+          totalOutput: 41,
+          models: [
+            {
+              modelID: "openai/gpt-5.4-mini",
+              input: 372,
+              output: 41,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(lines.every((line) => line.length <= TUI_SIDEBAR_MAX_WIDTH)).toBe(true);
+    expect(lines).toEqual([
+      SESSION_TOKEN_SECTION_HEADING,
+      "  openai/gpt-5.4-mini",
+      "    372 in  41 out",
+    ]);
+  });
+
+  it("renders classic sidebar session tokens as a standalone one-line summary", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {
         formatStyle: "classic",
