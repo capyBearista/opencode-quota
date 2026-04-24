@@ -67,7 +67,7 @@ The installer (append-only, preserves existing values) asks for:
 - **Scope**: `Project` or `Global`
 - **Quota UI**: `Toast`, `Sidebar`, `Toast + Sidebar`, or `None (manual /quota and /tokens_* only)`
 - **Provider mode**: `Auto-detect` or `Manual select`
-- **Quota display style**: `Single window` (`singleWindow`) or `All windows` (`allWindows`)
+- **Quota display style**: `Single window` (show the most constrained quota window for each provider) or `All windows`
 - **Percent display (toast/sidebar only)**: `remaining` or `used`
 - **Show session input/output tokens**: `Yes` or `No`
 
