@@ -281,7 +281,7 @@ function parseQuotaWindow(window: unknown): { percentRemaining: number; resetTim
   }
 
   return {
-    percentRemaining: Math.max(0, Math.min(100, Math.round(100 - used))),
+    percentRemaining: Math.min(100, Math.round(100 - used)),
     resetTimeIso: getWindowResetTimeIso(record),
   };
 }

@@ -21,6 +21,16 @@ async function writeAntigravityConstants(pluginRoot: string, clientId: string, c
   );
 }
 
+async function writeGeminiConstants(pluginRoot: string, clientId: string, clientSecret: string) {
+  const constantsDir = path.join(pluginRoot, "src");
+  await mkdir(constantsDir, { recursive: true });
+  await writeFile(
+    path.join(constantsDir, "constants.ts"),
+    `export const GEMINI_CLIENT_ID = "${clientId}";\nexport const GEMINI_CLIENT_SECRET = "${clientSecret}";\n`,
+    "utf8",
+  );
+}
+
 async function writeCursorSnapshot(
   pluginRoot: string,
   params: { modelsSource: string; proxySource: string; packageName?: string },
@@ -170,6 +180,19 @@ describe("upstream-plugin-sanitization", () => {
     await expect(readFile(path.join(tempRoot, "dist", "src", "constants.d.ts"), "utf8")).resolves.toContain(
       "REDACTED_GOOGLE_OAUTH_CLIENT_SECRET",
     );
+  });
+
+  it("redacts embedded Google OAuth values from Gemini CLI auth snapshots", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "opencode-quota-sanitize-"));
+    tempRoots.push(tempRoot);
+
+    await writeGeminiConstants(tempRoot, "SAFE_TEST_CLIENT_ID", "SAFE_TEST_CLIENT_SECRET");
+
+    await sanitizeUpstreamPluginSnapshot("opencode-gemini-auth", tempRoot);
+
+    const constantsSource = await readFile(path.join(tempRoot, "src", "constants.ts"), "utf8");
+    expect(constantsSource).toContain("REDACTED_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com");
+    expect(constantsSource).toContain("REDACTED_GOOGLE_OAUTH_CLIENT_SECRET");
   });
 
   it("fails closed when an expected secret assignment disappears", async () => {

@@ -171,6 +171,35 @@ interface PluginConfigInput {
 }
 
 // =============================================================================
+// Deferred Quota Refresh Specification
+// =============================================================================
+
+type DeferredQuotaRefreshReason =
+  | "config_load_failed"
+  | "no_available_providers"
+  | "provider_fetch_failed"
+  | "no_reportable_data";
+
+type DeferredQuotaRefreshState = {
+  sessionID: string;
+  attempts: number;
+  reason: DeferredQuotaRefreshReason;
+  queuedAtMs: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  inFlight: boolean;
+};
+
+type QuotaMessageFetchResult = {
+  message: string | null;
+  cacheRenderedMessage: boolean;
+  retryable: boolean;
+  retryReason?: DeferredQuotaRefreshReason;
+  hasQuotaRows: boolean;
+};
+
+const DEFERRED_QUOTA_REFRESH_DELAYS_MS = [3_000, 15_000, 60_000, 300_000] as const;
+
+// =============================================================================
 // Token Report Command Specification
 // =============================================================================
 
@@ -350,6 +379,72 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   // Track last session token error for /quota_status diagnostics
   let lastSessionTokenError: SessionTokenError | undefined;
 
+  const deferredQuotaRefreshes = new Map<string, DeferredQuotaRefreshState>();
+
+  function getDeferredQuotaRefreshDelayMs(attempts: number): number {
+    const index = Math.min(Math.max(0, attempts), DEFERRED_QUOTA_REFRESH_DELAYS_MS.length - 1);
+    return DEFERRED_QUOTA_REFRESH_DELAYS_MS[index]!;
+  }
+
+  function clearDeferredQuotaRefresh(sessionID: string): void {
+    const state = deferredQuotaRefreshes.get(sessionID);
+    if (state?.timer) {
+      clearTimeout(state.timer);
+    }
+    deferredQuotaRefreshes.delete(sessionID);
+  }
+
+  function clearDeferredQuotaRefreshTimer(state: DeferredQuotaRefreshState): void {
+    if (!state.timer) return;
+    clearTimeout(state.timer);
+    state.timer = null;
+  }
+
+  function scheduleDeferredQuotaRefresh(params: {
+    sessionID: string;
+    reason: DeferredQuotaRefreshReason;
+    incrementAttempts: boolean;
+  }): void {
+    let state = deferredQuotaRefreshes.get(params.sessionID);
+    if (!state) {
+      state = {
+        sessionID: params.sessionID,
+        attempts: 0,
+        reason: params.reason,
+        queuedAtMs: Date.now(),
+        timer: null,
+        inFlight: false,
+      };
+      deferredQuotaRefreshes.set(params.sessionID, state);
+    } else {
+      if (params.incrementAttempts) {
+        state.attempts += 1;
+      }
+      state.reason = params.reason;
+      clearDeferredQuotaRefreshTimer(state);
+    }
+
+    const delayMs = getDeferredQuotaRefreshDelayMs(state.attempts);
+    state.timer = setTimeout(() => {
+      void runDeferredQuotaRefresh(params.sessionID);
+    }, delayMs);
+    state.timer.unref?.();
+
+    void log("Deferred quota refresh scheduled", {
+      sessionID: params.sessionID,
+      reason: params.reason,
+      attempts: state.attempts,
+      delayMs,
+    });
+  }
+
+  async function runDeferredQuotaRefresh(sessionID: string): Promise<void> {
+    const state = deferredQuotaRefreshes.get(sessionID);
+    if (!state || state.inFlight) return;
+
+    await showQuotaToast(sessionID, "deferred.retry", { deferredRetry: true });
+  }
+
   function asRecord(value: unknown): Record<string, unknown> | null {
     return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
   }
@@ -434,11 +529,13 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     };
   }
 
-  async function resolvePluginRuntimeContext(params: {
-    sessionID?: string;
-    sessionMeta?: SessionModelMeta;
-    includeSessionMeta?: boolean | ((config: QuotaToastConfig) => boolean);
-  } = {}): Promise<QuotaRuntimeContext> {
+  async function resolvePluginRuntimeContext(
+    params: {
+      sessionID?: string;
+      sessionMeta?: SessionModelMeta;
+      includeSessionMeta?: boolean | ((config: QuotaToastConfig) => boolean);
+    } = {},
+  ): Promise<QuotaRuntimeContext> {
     if (!configLoaded) {
       await refreshConfig();
     }
@@ -655,7 +752,9 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     return "current session";
   }
 
-  async function buildQuotaCommandUnavailableMessage(runtime: QuotaRuntimeContext): Promise<string> {
+  async function buildQuotaCommandUnavailableMessage(
+    runtime: QuotaRuntimeContext,
+  ): Promise<string> {
     const selection = await resolveQuotaRenderSelection({
       client: runtime.client,
       config: runtime.config,
@@ -744,31 +843,64 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     clearCache(buildToastCacheKey(params));
   }
 
-  async function fetchQuotaMessage(params: {
+  function isProviderFetchFailureOnly(errors: Array<{ message: string }>): boolean {
+    return (
+      errors.length > 0 && errors.every((error) => error.message === "Failed to read quota data")
+    );
+  }
+
+  async function fetchQuotaMessageResult(params: {
     trigger: string;
     sessionID?: string;
     sessionMeta?: SessionModelMeta;
-  }): Promise<string | null> {
+    bypassProviderCache?: boolean;
+  }): Promise<QuotaMessageFetchResult> {
     // Ensure we have loaded config at least once. If load fails, we keep trying
-    // on subsequent triggers.
+    // on subsequent triggers and queue a deferred retry for toast paths.
     if (!configLoaded) {
       await refreshConfig();
     }
 
+    if (!configLoaded) {
+      return {
+        message: config.debug
+          ? formatDebugInfo({
+              trigger: params.trigger,
+              reason: "config load failed",
+              enabledProviders: config.enabledProviders,
+            })
+          : null,
+        cacheRenderedMessage: false,
+        retryable: true,
+        retryReason: "config_load_failed",
+        hasQuotaRows: false,
+      };
+    }
+
     if (!config.enabled) {
-      return config.debug
-        ? formatDebugInfo({ trigger: params.trigger, reason: "disabled", enabledProviders: [] })
-        : null;
+      return {
+        message: config.debug
+          ? formatDebugInfo({ trigger: params.trigger, reason: "disabled", enabledProviders: [] })
+          : null,
+        cacheRenderedMessage: false,
+        retryable: false,
+        hasQuotaRows: false,
+      };
     }
 
     if (config.enabledProviders !== "auto" && config.enabledProviders.length === 0) {
-      return config.debug
-        ? formatDebugInfo({
-            trigger: params.trigger,
-            reason: "enabledProviders empty",
-            enabledProviders: [],
-          })
-        : null;
+      return {
+        message: config.debug
+          ? formatDebugInfo({
+              trigger: params.trigger,
+              reason: "enabledProviders empty",
+              enabledProviders: [],
+            })
+          : null,
+        cacheRenderedMessage: false,
+        retryable: false,
+        hasQuotaRows: false,
+      };
     }
 
     const runtime = await resolvePluginRuntimeContext({
@@ -784,6 +916,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       request: quotaRequestContext,
       surfaceExplicitProviderIssues: true,
       formatStyle: resolveQuotaFormatStyle(runtimeConfig.formatStyle),
+      bypassProviderCache: params.bypassProviderCache,
     });
     const { selection, availability, active, attemptedAny, hasExplicitProviderIssues, data } =
       quotaResult;
@@ -794,9 +927,14 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
 
     const currentModel = selection?.currentModel;
     const errors = data?.errors ?? [];
+    const hasProviderQuotaRows = Boolean(data?.entries.length);
+    const hasQuotaRows = Boolean(hasProviderQuotaRows || data?.sessionTokens);
+    const providerFetchFailureOnly = attemptedAny && isProviderFetchFailureOnly(errors);
+    const retryableAvailabilityFailure =
+      active.length === 0 && availability.some((item) => !item.ok && item.error === true);
 
     if (active.length === 0 && !(hasExplicitProviderIssues && errors.length > 0)) {
-      return runtimeConfig.debug
+      const message = runtimeConfig.debug
         ? formatDebugInfo({
             trigger: params.trigger,
             reason: "no enabled providers available",
@@ -808,131 +946,299 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
             })),
           })
         : null;
+      const retryableNoProviders = selection?.isAutoMode === true || retryableAvailabilityFailure;
+      return {
+        message,
+        cacheRenderedMessage: false,
+        retryable: retryableNoProviders,
+        retryReason: retryableNoProviders ? "no_available_providers" : undefined,
+        hasQuotaRows: false,
+      };
     }
 
-    if (data?.entries.length) {
+    if (hasQuotaRows) {
       const formatted = formatQuotaRows({
         version: "1.0.0",
         layout: runtimeConfig.layout,
-        entries: data.entries,
-        errors: data.errors,
+        entries: data?.entries ?? [],
+        errors: data?.errors ?? [],
         style: resolveQuotaFormatStyle(runtimeConfig.formatStyle),
         percentDisplayMode: runtimeConfig.percentDisplayMode,
-        sessionTokens: data.sessionTokens,
+        sessionTokens: data?.sessionTokens,
       });
 
-      if (!runtimeConfig.debug) return formatted;
+      const retryableMaskedProviderFailure = !hasProviderQuotaRows && providerFetchFailureOnly;
+
+      if (!runtimeConfig.debug) {
+        return {
+          message: formatted,
+          cacheRenderedMessage: true,
+          retryable: retryableMaskedProviderFailure,
+          retryReason: retryableMaskedProviderFailure ? "provider_fetch_failed" : undefined,
+          hasQuotaRows: true,
+        };
+      }
 
       const debugFooter = `\n\n[debug] src=${configMeta.source} providers=${runtimeConfig.enabledProviders === "auto" ? "(auto)" : runtimeConfig.enabledProviders.join(",") || "(none)"} avail=${availability
         .map((item) => `${item.provider.id}:${item.ok ? "ok" : "no"}`)
         .join(" ")}`;
 
-      return formatted + debugFooter;
+      return {
+        message: formatted + debugFooter,
+        cacheRenderedMessage: false,
+        retryable: retryableMaskedProviderFailure,
+        retryReason: retryableMaskedProviderFailure ? "provider_fetch_failed" : undefined,
+        hasQuotaRows: true,
+      };
     }
 
     // Show errors even without entries when:
     // 1. showOnBothFail is enabled and at least one provider attempted (existing behavior)
     // 2. OR we're in explicit mode and have "Not configured"/"Unavailable" errors (new behavior)
-    if ((runtimeConfig.showOnBothFail && attemptedAny && errors.length > 0) || hasExplicitProviderIssues) {
+    if (
+      (runtimeConfig.showOnBothFail && attemptedAny && errors.length > 0) ||
+      hasExplicitProviderIssues
+    ) {
       const errorLines = errors.map((error) => `${error.label}: ${error.message}`).join("\n");
-      if (!runtimeConfig.debug) return errorLines || "Quota unavailable";
-      return (
-        (errorLines || "Quota unavailable") +
-        "\n\n" +
-        formatDebugInfo({
-          trigger: params.trigger,
-          reason: hasExplicitProviderIssues
-            ? "providers missing/unavailable"
-            : "all providers failed",
-          currentModel,
-          enabledProviders: runtimeConfig.enabledProviders,
-          availability: availability.map((item) => ({
-            id: item.provider.id,
-            ok: item.ok,
-          })),
-        })
-      );
+      const retryableFetchFailure = !hasExplicitProviderIssues && providerFetchFailureOnly;
+      const retryableFailure = retryableFetchFailure || retryableAvailabilityFailure;
+      const retryReason: DeferredQuotaRefreshReason | undefined = retryableFetchFailure
+        ? "provider_fetch_failed"
+        : retryableAvailabilityFailure
+          ? "no_available_providers"
+          : undefined;
+      const message = !runtimeConfig.debug
+        ? errorLines || "Quota unavailable"
+        : (errorLines || "Quota unavailable") +
+          "\n\n" +
+          formatDebugInfo({
+            trigger: params.trigger,
+            reason: hasExplicitProviderIssues
+              ? "providers missing/unavailable"
+              : "all providers failed",
+            currentModel,
+            enabledProviders: runtimeConfig.enabledProviders,
+            availability: availability.map((item) => ({
+              id: item.provider.id,
+              ok: item.ok,
+            })),
+          });
+      return {
+        message,
+        cacheRenderedMessage: false,
+        retryable: retryableFailure,
+        retryReason,
+        hasQuotaRows: false,
+      };
     }
 
-    return runtimeConfig.debug
-      ? formatDebugInfo({
+    const retryableNoData =
+      providerFetchFailureOnly ||
+      (selection?.isAutoMode === true && active.length > 0 && errors.length === 0);
+    return {
+      message: runtimeConfig.debug
+        ? formatDebugInfo({
+            trigger: params.trigger,
+            reason: "no entries",
+            currentModel,
+            enabledProviders: runtimeConfig.enabledProviders,
+            availability: availability.map((item) => ({
+              id: item.provider.id,
+              ok: item.ok,
+            })),
+          })
+        : null,
+      cacheRenderedMessage: false,
+      retryable: retryableNoData,
+      retryReason: providerFetchFailureOnly
+        ? "provider_fetch_failed"
+        : retryableNoData
+          ? "no_reportable_data"
+          : undefined,
+      hasQuotaRows: false,
+    };
+  }
+
+  async function fetchQuotaMessage(params: {
+    trigger: string;
+    sessionID?: string;
+    sessionMeta?: SessionModelMeta;
+    bypassProviderCache?: boolean;
+  }): Promise<string | null> {
+    const result = await fetchQuotaMessageResult(params);
+    return result.message;
+  }
+
+  async function reconcileDeferredQuotaRefresh(params: {
+    sessionID: string;
+    result: QuotaMessageFetchResult;
+    consumedDeferredRetry: boolean;
+    trigger: string;
+  }): Promise<void> {
+    const existing = deferredQuotaRefreshes.get(params.sessionID);
+
+    if (!params.result.retryable) {
+      if (existing) {
+        clearDeferredQuotaRefresh(params.sessionID);
+        await log("Deferred quota refresh cleared", {
+          sessionID: params.sessionID,
           trigger: params.trigger,
-          reason: "no entries",
-          currentModel,
-          enabledProviders: runtimeConfig.enabledProviders,
-          availability: availability.map((item) => ({
-            id: item.provider.id,
-            ok: item.ok,
-          })),
-        })
-      : null;
+          reason: params.result.hasQuotaRows ? "quota_rows_available" : "not_retryable",
+        });
+      }
+      return;
+    }
+
+    if (!params.result.retryReason) {
+      return;
+    }
+
+    scheduleDeferredQuotaRefresh({
+      sessionID: params.sessionID,
+      reason: params.result.retryReason,
+      incrementAttempts: params.consumedDeferredRetry,
+    });
   }
 
   /**
    * Show quota toast for a session
    */
-  async function showQuotaToast(sessionID: string, trigger: string): Promise<void> {
+  async function showQuotaToast(
+    sessionID: string,
+    trigger: string,
+    options: { deferredRetry?: boolean } = {},
+  ): Promise<void> {
     if (!configLoaded) {
       await refreshConfig();
     }
 
-    // Check if subagent session
-    if (await isSubagentSession(sessionID)) {
-      await log("Skipping toast for subagent session", { sessionID, trigger });
-      return;
+    const pendingDeferred = deferredQuotaRefreshes.get(sessionID);
+    const consumedDeferredRetry = options.deferredRetry === true || Boolean(pendingDeferred);
+    if (pendingDeferred) {
+      if (pendingDeferred.inFlight && !options.deferredRetry) {
+        await log("Skipping duplicate deferred quota refresh", { sessionID, trigger });
+        return;
+      }
+      pendingDeferred.inFlight = true;
+      clearDeferredQuotaRefreshTimer(pendingDeferred);
     }
 
-    // Get or fetch quota (with caching/throttling)
-    // If debug is enabled, bypass caching so the toast reflects current state.
-    function shouldCacheToastMessage(msg: string): boolean {
-      // Cache when we have any quota row (which always includes a "NN%" token).
-      // Do not cache when output is only error rows (rendered as "label: message").
-      const lines = msg.split("\n");
-      return lines.some((l) => /\b\d{1,3}%\b/.test(l) && !/:\s/.test(l));
-    }
-
-    const sessionMeta = await getSessionModelMeta(sessionID);
-    const bypassMessageCache = config.debug
-      ? true
-      : await shouldBypassToastCacheForLiveLocalUsage({ trigger, sessionID, sessionMeta });
-    const toastCacheKey = buildToastCacheKey({ sessionID, sessionMeta });
-
-    const message = bypassMessageCache
-      ? await fetchQuotaMessage({ trigger, sessionID, sessionMeta })
-      : await getOrFetchWithCacheControl(toastCacheKey, async () => {
-          const msg = await fetchQuotaMessage({ trigger, sessionID, sessionMeta });
-          const cache = msg ? shouldCacheToastMessage(msg) : true;
-          return { message: msg, cache };
-        }, config.minIntervalMs);
-
-    if (!message) {
-      await log("No quota message to display", { trigger });
-      return;
-    }
-
-    if (!config.enableToast) {
-      await log("Toast disabled (enableToast=false)", { trigger });
-      return;
-    }
-
-    // Show toast
     try {
-      await typedClient.tui.showToast({
-        body: {
-          message: sanitizeDisplayText(message),
-          variant: "info",
-          duration: config.toastDurationMs,
-        },
+      // Check if session is a subagent session
+      if (await isSubagentSession(sessionID)) {
+        if (consumedDeferredRetry) {
+          clearDeferredQuotaRefresh(sessionID);
+        }
+        await log("Skipping toast for subagent session", { sessionID, trigger });
+        return;
+      }
+
+      // Get or fetch quota (with caching/throttling)
+      // If debug is enabled, bypass caching so the toast reflects current state.
+      function shouldCacheToastMessage(msg: string): boolean {
+        // Cache when we have any quota row (which always includes a "NN%" token).
+        // Do not cache when output is only error rows (rendered as "label: message").
+        const lines = msg.split("\n");
+        return lines.some((l) => /\b\d+%\b/.test(l) && !/:\s/.test(l));
+      }
+
+      const sessionMeta = await getSessionModelMeta(sessionID);
+      const bypassForLiveLocalUsage = await shouldBypassToastCacheForLiveLocalUsage({
+        trigger,
+        sessionID,
+        sessionMeta,
       });
-      await log("Displayed quota toast", { message, trigger });
-    } catch (err) {
-      await log("Failed to show toast", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const bypassMessageCache = config.debug || consumedDeferredRetry || bypassForLiveLocalUsage;
+      const bypassProviderCache = consumedDeferredRetry || bypassForLiveLocalUsage;
+      const toastCacheKey = buildToastCacheKey({ sessionID, sessionMeta });
+
+      let fetchResult: QuotaMessageFetchResult | undefined;
+      const fetchForToast = () =>
+        fetchQuotaMessageResult({
+          trigger,
+          sessionID,
+          sessionMeta,
+          bypassProviderCache,
+        });
+
+      const message = bypassMessageCache
+        ? await (async () => {
+            fetchResult = await fetchForToast();
+            return fetchResult.message;
+          })()
+        : await (async () => {
+            const fetched: { result?: QuotaMessageFetchResult } = {};
+            const cachedMessage = await getOrFetchWithCacheControl(
+              toastCacheKey,
+              async () => {
+                const result = await fetchForToast();
+                fetched.result = result;
+                const cache = result.message
+                  ? result.cacheRenderedMessage && shouldCacheToastMessage(result.message)
+                  : result.cacheRenderedMessage;
+                return { message: result.message, cache };
+              },
+              config.minIntervalMs,
+            );
+            fetchResult = fetched.result;
+            return cachedMessage;
+          })();
+
+      if (fetchResult) {
+        await reconcileDeferredQuotaRefresh({
+          sessionID,
+          result: fetchResult,
+          consumedDeferredRetry,
+          trigger,
+        });
+      }
+
+      if (options.deferredRetry && fetchResult && !fetchResult.hasQuotaRows) {
+        await log("Deferred quota refresh did not produce reportable data", {
+          sessionID,
+          trigger,
+          retryable: fetchResult.retryable,
+          retryReason: fetchResult.retryReason,
+        });
+        return;
+      }
+
+      if (!message) {
+        await log("No quota message to display", { trigger });
+        return;
+      }
+
+      if (!config.enableToast) {
+        await log("Toast disabled (enableToast=false)", { trigger });
+        return;
+      }
+
+      // Show toast
+      try {
+        await typedClient.tui.showToast({
+          body: {
+            message: sanitizeDisplayText(message),
+            variant: "info",
+            duration: config.toastDurationMs,
+          },
+        });
+        await log("Displayed quota toast", { message, trigger });
+      } catch (err) {
+        await log("Failed to show toast", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } finally {
+      const state = deferredQuotaRefreshes.get(sessionID);
+      if (state) {
+        state.inFlight = false;
+      }
     }
   }
 
-  async function fetchQuotaCommandData(runtime: QuotaRuntimeContext): Promise<QuotaCommandRenderData | null> {
+  async function fetchQuotaCommandData(
+    runtime: QuotaRuntimeContext,
+  ): Promise<QuotaCommandRenderData | null> {
     const request = createQuotaRuntimeRequestContext(runtime);
     const quotaResult = await collectQuotaRenderData({
       client: runtime.client,
@@ -1396,7 +1702,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       cfg.command["quota_status"] = {
         template: "/quota_status",
         description:
-            "Diagnostics for toast + TUI + pricing + local storage (includes unknown pricing report).",
+          "Diagnostics for toast + TUI + pricing + local storage (includes unknown pricing report).",
       };
       cfg.command["pricing_refresh"] = {
         template: "/pricing_refresh",
@@ -1469,7 +1775,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     tool: {
       quota_status: tool({
         description:
-            "Diagnostics for toast + TUI + pricing + local storage (includes unknown pricing report).",
+          "Diagnostics for toast + TUI + pricing + local storage (includes unknown pricing report).",
         args: {
           refreshGoogleTokens: tool.schema
             .boolean()
@@ -1515,7 +1821,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         await refreshConfig();
       }
 
-      if (!config.enabled) return;
+      if (!config.enabled) {
+        clearDeferredQuotaRefresh(sessionID);
+        return;
+      }
 
       if (event.type === "session.idle" && config.showOnIdle) {
         await showQuotaToast(sessionID, "session.idle");
@@ -1532,7 +1841,10 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
         await refreshConfig();
       }
 
-      if (!config.enabled) return;
+      if (!config.enabled) {
+        clearDeferredQuotaRefresh(input.sessionID);
+        return;
+      }
 
       if (isSuccessfulQuestionExecution(output)) {
         const sessionMeta = await getSessionModelMeta(input.sessionID);

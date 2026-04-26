@@ -155,10 +155,10 @@ describe("loadConfig", () => {
 
   it("normalizes enabled provider aliases to canonical ids", async () => {
     const cfg = await loadSdkConfig({
-      enabledProviders: ["nano-gpt", "nanogpt", "open-cursor"],
+      enabledProviders: ["nano-gpt", "nanogpt", "open-cursor", "gemini-cli"],
     });
 
-    expect(cfg.config.enabledProviders).toEqual(["nanogpt", "cursor"]);
+    expect(cfg.config.enabledProviders).toEqual(["nanogpt", "cursor", "google-gemini-cli"]);
   });
 
   it("keeps sdk fallback disabled once any file-backed experimental.quotaToast exists, even if it is invalid", async () => {

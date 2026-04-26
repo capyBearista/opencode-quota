@@ -94,7 +94,7 @@ export async function queryOpenCodeGoQuota(
       };
     }
 
-    const usagePercent = Math.max(0, Math.min(100, monthly.usagePercent));
+    const usagePercent = Math.max(0, monthly.usagePercent);
     const percentRemaining = 100 - usagePercent;
     const resetInSec = Math.max(0, monthly.resetInSec);
     const resetTimeIso = new Date(Date.now() + resetInSec * 1000).toISOString();

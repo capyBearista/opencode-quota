@@ -38,7 +38,14 @@ export function formatQuotaRowsGrouped(params: {
   const isNarrow = !isTiny && maxWidth <= layout.narrowAt;
 
   const separator = "  ";
-  const percentCol = DISPLAYED_PERCENT_LABEL_WIDTH;
+  const percentCol = Math.max(
+    DISPLAYED_PERCENT_LABEL_WIDTH,
+    ...(params.entries ?? [])
+      .filter((entry) => !isValueEntry(entry))
+      .map((entry) =>
+        formatDisplayedPercentLabel(entry.percentRemaining, params.percentDisplayMode).length,
+      ),
+  );
   const barWidth = Math.max(10, maxWidth - separator.length - percentCol);
   const timeCol = isTiny ? 6 : isNarrow ? 7 : 7;
 
@@ -75,7 +82,10 @@ export function formatQuotaRowsGrouped(params: {
         if (isTiny) {
           // Tiny: "label  time  value"
           const valueCol = Math.min(value.length, Math.max(6, percentCol + 2));
-          const tinyNameCol = maxWidth - separator.length - timeCol - separator.length - valueCol;
+          const tinyNameCol = Math.max(
+            1,
+            maxWidth - separator.length - timeCol - separator.length - valueCol,
+          );
           const leftText = right ? `${label} ${right}` : label;
           const line = [
             padRight(leftText, tinyNameCol),
@@ -119,7 +129,10 @@ export function formatQuotaRowsGrouped(params: {
 
       if (isTiny) {
         // Tiny: "label  time  XX%" (ignore bar)
-        const tinyNameCol = maxWidth - separator.length - timeCol - separator.length - percentCol;
+        const tinyNameCol = Math.max(
+          1,
+          maxWidth - separator.length - timeCol - separator.length - percentCol,
+        );
         const leftText = right ? `${label} ${right}` : label;
         const line = [
           padRight(leftText, tinyNameCol),

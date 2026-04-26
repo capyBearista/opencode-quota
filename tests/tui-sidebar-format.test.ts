@@ -247,6 +247,54 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect((barLine.match(/█/g) ?? [])).toHaveLength(5);
   });
 
+  it("renders over-quota used percentages above 100 in the sidebar", () => {
+    const lines = buildSidebarQuotaPanelLines({
+      config: {
+        formatStyle: "singleWindow",
+        percentDisplayMode: "used",
+      },
+      data: {
+        entries: [
+          {
+            name: "Copilot",
+            percentRemaining: -25,
+            resetTimeIso: "2099-01-01T00:00:00.000Z",
+          },
+        ],
+        errors: [],
+        sessionTokens: undefined,
+      },
+    });
+
+    const barLine = lines[1] ?? "";
+    expect(barLine).toContain("125% used");
+    expect((barLine.match(/░/g) ?? [])).toHaveLength(0);
+  });
+
+  it("never shows negative remaining labels in the sidebar", () => {
+    const lines = buildSidebarQuotaPanelLines({
+      config: {
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+      },
+      data: {
+        entries: [
+          {
+            name: "Copilot",
+            percentRemaining: -25,
+            resetTimeIso: "2099-01-01T00:00:00.000Z",
+          },
+        ],
+        errors: [],
+        sessionTokens: undefined,
+      },
+    });
+
+    const barLine = lines[1] ?? "";
+    expect(barLine).toContain("0% left");
+    expect(barLine).not.toContain("-%");
+  });
+
   it("renders all-window sidebar session tokens with detailed per-model rows", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {

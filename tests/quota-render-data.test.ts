@@ -90,7 +90,7 @@ describe("collectQuotaRenderData shared quota state", () => {
 
     expect(workingProvider.fetch).toHaveBeenCalledOnce();
     expect(result.availability).toEqual([
-      { provider: failingProvider, ok: false },
+      { provider: failingProvider, ok: false, error: true },
       { provider: workingProvider, ok: true },
     ]);
     expect(result.active).toEqual([workingProvider]);
@@ -121,7 +121,7 @@ describe("collectQuotaRenderData shared quota state", () => {
       formatStyle: "singleWindow",
     });
 
-    expect(result.availability).toEqual([{ provider: failingProvider, ok: false }]);
+    expect(result.availability).toEqual([{ provider: failingProvider, ok: false, error: true }]);
     expect(result.active).toEqual([]);
     expect(result.hasExplicitProviderIssues).toBe(true);
     expect(result.data).toEqual({
@@ -150,7 +150,7 @@ describe("collectQuotaRenderData shared quota state", () => {
       formatStyle: "singleWindow",
     });
 
-    expect(result.availability).toEqual([{ provider: failingProvider, ok: false }]);
+    expect(result.availability).toEqual([{ provider: failingProvider, ok: false, error: true }]);
     expect(result.active).toEqual([]);
     expect(result.hasExplicitProviderIssues).toBe(false);
     expect(result.data).toBeNull();

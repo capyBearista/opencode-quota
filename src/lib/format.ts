@@ -58,7 +58,14 @@ export function formatQuotaRows(params: {
   const isNarrow = !isTiny && maxWidth <= layout.narrowAt;
 
   const separator = "  ";
-  const percentCol = DISPLAYED_PERCENT_LABEL_WIDTH; // "100% used"
+  const percentCol = Math.max(
+    DISPLAYED_PERCENT_LABEL_WIDTH,
+    ...(params.entries ?? [])
+      .filter((entry) => !isValueEntry(entry))
+      .map((entry) =>
+        formatDisplayedPercentLabel(entry.percentRemaining, params.percentDisplayMode).length,
+      ),
+  );
 
   const timeCol = isTiny ? 6 : isNarrow ? 7 : 7;
 
@@ -86,7 +93,10 @@ export function formatQuotaRows(params: {
 
     if (isTiny) {
       // In tiny mode: single line with name + time + percent
-      const tinyNameCol = maxWidth - separator.length - timeCol - separator.length - percentCol;
+      const tinyNameCol = Math.max(
+        1,
+        maxWidth - separator.length - timeCol - separator.length - percentCol,
+      );
       const line = [
         padRight(leftText, tinyNameCol),
         padLeft(timeStr, timeCol),

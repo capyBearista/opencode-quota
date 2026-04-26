@@ -10,6 +10,7 @@ import { copilotProvider } from "./copilot.js";
 import { openaiProvider } from "./openai.js";
 import { cursorProvider } from "./cursor.js";
 import { googleAntigravityProvider } from "./google-antigravity.js";
+import { googleGeminiCliProvider } from "./google-gemini-cli.js";
 import { syntheticProvider } from "./synthetic.js";
 import { chutesProvider } from "./chutes.js";
 import { qwenCodeProvider } from "./qwen-code.js";
@@ -32,6 +33,7 @@ export function getProviders(): QuotaProvider[] {
     syntheticProvider,
     chutesProvider,
     googleAntigravityProvider,
+    googleGeminiCliProvider,
     zaiProvider,
     nanoGptProvider,
     minimaxCodingPlanProvider,

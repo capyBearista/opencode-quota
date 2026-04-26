@@ -158,6 +158,40 @@ describe("queryCopilotQuota", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://api.github.com/copilot_internal/user");
   });
 
+  it("allows negative percentRemaining when /copilot_internal/user reports usage above the quota total", async () => {
+    authMocks.readAuthFile.mockResolvedValueOnce({
+      "github-copilot-chat": { type: "oauth", access: "oauth_access_token", refresh: "refresh" },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            quota: {
+              used: 360,
+              limit: 300,
+              reset_at: "2026-02-01T00:00:00.000Z",
+            },
+          }),
+          { status: 200 },
+        ),
+      ) as any,
+    );
+
+    const { queryCopilotQuota } = await import("../src/lib/copilot.js");
+    const result = await queryCopilotQuota();
+
+    expect(result).toEqual({
+      success: true,
+      mode: "user_quota",
+      used: 360,
+      total: 300,
+      percentRemaining: -20,
+      resetTimeIso: "2026-02-01T00:00:00.000Z",
+    });
+  });
+
   it("parses premium_interactions from /copilot_internal/user quota_snapshots", async () => {
     authMocks.readAuthFile.mockResolvedValueOnce({
       "github-copilot": { type: "oauth", access: "oauth_access_token", refresh: "refresh" },

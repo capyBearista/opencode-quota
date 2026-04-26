@@ -68,6 +68,46 @@ describe("formatQuotaRows", () => {
     expect((barLine.match(/█/g) ?? [])).toHaveLength(2);
   });
 
+  it("renders over-quota percentages above 100 in used mode", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      layout: { maxWidth: 32, narrowAt: 24, tinyAt: 16 },
+      percentDisplayMode: "used",
+      entries: [
+        {
+          name: "Copilot",
+          percentRemaining: -25,
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const lines = out.split("\n");
+    const barLine = lines[1] ?? "";
+    expect(barLine).toContain("125% used");
+    expect((barLine.match(/░/g) ?? [])).toHaveLength(0);
+  });
+
+  it("floors over-quota remaining labels at 0% left", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      layout: { maxWidth: 32, narrowAt: 24, tinyAt: 16 },
+      percentDisplayMode: "remaining",
+      entries: [
+        {
+          name: "Copilot",
+          percentRemaining: -25,
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const lines = out.split("\n");
+    const barLine = lines[1] ?? "";
+    expect(barLine).toContain("0% left");
+    expect((barLine.match(/█/g) ?? [])).toHaveLength(0);
+  });
+
   it("renders percent-row usage summaries in classic output when providers supply them", () => {
     const out = formatQuotaRows({
       version: "1.0.0",

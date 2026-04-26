@@ -63,6 +63,19 @@ const googleCompanionMocks = vi.hoisted(() => ({
   })),
 }));
 
+const geminiCliMocks = vi.hoisted(() => ({
+  inspectGeminiCliAuthPresence: vi.fn(async () => ({
+    state: "missing" as const,
+    accountCount: 0,
+    validAccountCount: 0,
+  })),
+  inspectGeminiCliCompanionPresence: vi.fn(async () => ({
+    state: "missing" as const,
+    importSpecifier: "opencode-gemini-auth/src/constants.ts",
+    error: "Install opencode-gemini-auth separately to enable Gemini CLI quota",
+  })),
+}));
+
 const openaiMocks = vi.hoisted(() => ({
   resolveOpenAIOAuth: vi.fn(() => ({ state: "none" as const })),
 }));
@@ -184,6 +197,14 @@ vi.mock("../src/lib/google.js", () => ({
 
 vi.mock("../src/lib/google-antigravity-companion.js", () => ({
   inspectAntigravityCompanionPresence: googleCompanionMocks.inspectAntigravityCompanionPresence,
+}));
+
+vi.mock("../src/lib/google-gemini-cli.js", () => ({
+  inspectGeminiCliAuthPresence: geminiCliMocks.inspectGeminiCliAuthPresence,
+}));
+
+vi.mock("../src/lib/google-gemini-cli-companion.js", () => ({
+  inspectGeminiCliCompanionPresence: geminiCliMocks.inspectGeminiCliCompanionPresence,
 }));
 
 vi.mock("../src/lib/anthropic.js", () => ({
@@ -825,6 +846,7 @@ describe("buildQuotaStatusReport", () => {
         "minimax-coding-plan",
         "copilot",
         "google-antigravity",
+        "google-gemini-cli",
         "chutes",
       ],
       alibabaCodingPlanTier: "lite",
@@ -838,6 +860,7 @@ describe("buildQuotaStatusReport", () => {
         { id: "minimax-coding-plan", enabled: true, available: true },
         { id: "copilot", enabled: true, available: true },
         { id: "google-antigravity", enabled: true, available: true },
+        { id: "google-gemini-cli", enabled: true, available: true },
         { id: "chutes", enabled: true, available: true },
       ],
       providerLiveProbes: [
@@ -914,6 +937,22 @@ describe("buildQuotaStatusReport", () => {
           },
         },
         {
+          providerId: "google-gemini-cli",
+          result: {
+            attempted: true,
+            entries: [
+              {
+                label: "Pro",
+                name: "Gemini CLI Pro",
+                percentRemaining: 77,
+                right: "77 left",
+                resetTimeIso: "2026-04-23T00:00:00.000Z",
+              },
+            ],
+            errors: [],
+          },
+        },
+        {
           providerId: "chutes",
           result: {
             attempted: true,
@@ -958,6 +997,14 @@ describe("buildQuotaStatusReport", () => {
 
     const googleSection = getSection(report, "google_antigravity:");
     expect(googleSection).toContain("- live_probe: no_data");
+
+    const geminiCliSection = getSection(report, "google_gemini_cli:");
+    expect(geminiCliSection).toContain("- auth_state: missing");
+    expect(geminiCliSection).toContain("- companion_package_state: missing");
+    expect(geminiCliSection).toContain("- live_probe: success");
+    expect(geminiCliSection).toContain(
+      "- live_entry_1: Pro 77 left percent_remaining=77 reset_at=2026-04-23T00:00:00.000Z",
+    );
 
     const chutesSection = getSection(report, "chutes:");
     expect(chutesSection).toContain("- live_probe: error");
@@ -1470,6 +1517,7 @@ describe("buildQuotaStatusReport", () => {
       nanogpt:
       copilot_quota_auth:
       google_antigravity:
+      google_gemini_cli:
       storage:
       pricing_snapshot:
       supported_providers_pricing:

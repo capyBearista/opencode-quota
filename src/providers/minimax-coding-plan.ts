@@ -93,7 +93,7 @@ function isMiniMaxModelRecord(value: unknown): value is MiniMaxModelRemain {
 }
 
 function roundPercent(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return Math.min(100, Math.round(value));
 }
 
 function sanitizeMiniMaxMessage(text: string, maxLength = 120): string {
@@ -102,7 +102,7 @@ function sanitizeMiniMaxMessage(text: string, maxLength = 120): string {
 }
 
 function clampRemaining(total: number, remaining: number): number {
-  return Math.max(0, Math.min(total, remaining));
+  return Math.min(total, remaining);
 }
 
 function isMiniMaxCodingModelName(modelName: string): boolean {

@@ -59,8 +59,9 @@ export function resolveDisplayedPercent(
   percentRemaining: number,
   mode: PercentDisplayMode = "remaining",
 ): number {
-  const remaining = clampInt(percentRemaining, 0, 100);
-  return mode === "used" ? 100 - remaining : remaining;
+  const remaining = Math.max(0, Math.round(percentRemaining));
+  const used = Math.max(0, Math.round(100 - percentRemaining));
+  return mode === "used" ? used : remaining;
 }
 
 export function formatDisplayedPercentLabel(

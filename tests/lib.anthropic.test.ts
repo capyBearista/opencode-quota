@@ -123,7 +123,7 @@ describe("parseUsageResponse", () => {
     expect(result?.seven_day.resetTimeIso).toBe("2026-04-01T00:00:00.000Z");
   });
 
-  it("drops invalid reset timestamps and clamps percent remaining", () => {
+  it("drops invalid reset timestamps and only caps percent remaining above 100", () => {
     const result = parseUsageResponse({
       usage: {
         five_hour: { used_percentage: 120, resets_at: "\u001b[31mbad-reset" },
@@ -131,7 +131,7 @@ describe("parseUsageResponse", () => {
       },
     });
 
-    expect(result?.five_hour.percentRemaining).toBe(0);
+    expect(result?.five_hour.percentRemaining).toBe(-20);
     expect(result?.five_hour.resetTimeIso).toBeUndefined();
     expect(result?.seven_day.percentRemaining).toBe(100);
     expect(result?.seven_day.resetTimeIso).toBeUndefined();

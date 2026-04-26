@@ -1,0 +1,29 @@
+{
+  "name": "opencode-gemini-auth",
+  "main": "./index.ts",
+  "module": "index.ts",
+  "version": "1.4.10",
+  "author": "jenslys",
+  "repository": "https://github.com/jenslys/opencode-gemini-auth",
+  "files": [
+    "index.ts",
+    "src"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "update:gemini-cli": "git -C .local/gemini-cli pull --ff-only",
+    "update:gemini-cli-version": "node commands/sync-gemini-cli-version.mjs",
+    "update:gemini-cli-sync": "npm run update:gemini-cli && npm run update:gemini-cli-version"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.2.20",
+    "@openauthjs/openauth": "^0.4.3"
+  }
+}

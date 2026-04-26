@@ -4,6 +4,8 @@ import { getAuthPath, getAuthPaths, readAuthFileCached } from "./opencode-auth.j
 import { getOpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
 import { getGoogleTokenCachePath } from "./google-token-cache.js";
 import { inspectAntigravityCompanionPresence } from "./google-antigravity-companion.js";
+import { inspectGeminiCliCompanionPresence } from "./google-gemini-cli-companion.js";
+import { inspectGeminiCliAuthPresence } from "./google-gemini-cli.js";
 import { inspectAntigravityAccountsPresence } from "./google.js";
 import { getAnthropicDiagnostics } from "./anthropic.js";
 import { getChutesKeyDiagnostics } from "./chutes.js";
@@ -491,6 +493,12 @@ function supportedProviderPricingRow(params: {
     return snapshotHasProvider("google") || snapshotHasProvider("anthropic")
       ? { id, pricing: "yes", notes: "connector (priced via models.dev google/anthropic)" }
       : { id, pricing: "partial", notes: "connector (pricing snapshot missing google/anthropic)" };
+  }
+
+  if (id === "google-gemini-cli") {
+    return snapshotHasProvider("google")
+      ? { id, pricing: "yes", notes: "connector (priced via models.dev google)" }
+      : { id, pricing: "partial", notes: "connector (pricing snapshot missing google)" };
   }
 
   // Connector providers: pricing exists when model IDs can be mapped into snapshot pricing keys.
@@ -1315,6 +1323,35 @@ export async function buildQuotaStatusReport(params: {
   });
   appendProviderCompactLiveProbeRows(googleRows, "google-antigravity", params.providerLiveProbes);
   sections.push(createKvSection("google_antigravity", "google_antigravity:", googleRows));
+
+  // === google gemini cli ===
+  const geminiCliAuthPresence = await inspectGeminiCliAuthPresence();
+  const geminiCliCompanionPresence = await inspectGeminiCliCompanionPresence();
+  const geminiCliRows: ReportKvRow[] = [
+    { key: "auth_state", value: geminiCliAuthPresence.state },
+    { key: "auth_source", value: geminiCliAuthPresence.sourceKey ?? "(none)" },
+    { key: "account_count", value: String(geminiCliAuthPresence.accountCount) },
+    { key: "valid_account_count", value: String(geminiCliAuthPresence.validAccountCount) },
+    { key: "companion_package_state", value: geminiCliCompanionPresence.state },
+    {
+      key: "companion_package_path",
+      value:
+        geminiCliCompanionPresence.state === "present" || geminiCliCompanionPresence.state === "invalid"
+          ? geminiCliCompanionPresence.resolvedPath ?? "(none)"
+          : "(none)",
+    },
+  ];
+  if (geminiCliAuthPresence.state === "invalid") {
+    geminiCliRows.push({ key: "auth_error", value: sanitizeDisplayText(geminiCliAuthPresence.error) });
+  }
+  if (geminiCliCompanionPresence.state !== "present") {
+    geminiCliRows.push({
+      key: "companion_error",
+      value: sanitizeDisplayText(geminiCliCompanionPresence.error),
+    });
+  }
+  appendProviderCompactLiveProbeRows(geminiCliRows, "google-gemini-cli", params.providerLiveProbes);
+  sections.push(createKvSection("google_gemini_cli", "google_gemini_cli:", geminiCliRows));
 
   if (params.googleRefresh?.attempted) {
     const googleRefreshRows: ReportKvRow[] = [];

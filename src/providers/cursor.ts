@@ -4,7 +4,7 @@ import type {
   QuotaProviderResult,
   QuotaToastEntry,
 } from "../lib/entries.js";
-import { clampPercent, fmtUsdAmount } from "../lib/format-utils.js";
+import { fmtUsdAmount } from "../lib/format-utils.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import {
   getEffectiveCursorIncludedApiUsd,
@@ -92,7 +92,7 @@ export const cursorProvider: QuotaProvider = {
               group,
               label: "API:",
               right: `${fmtUsdAmount(usage.api.costUsd)}/${fmtUsdAmount(includedApiUsd)}`,
-              percentRemaining: clampPercent(100 - (usage.api.costUsd / includedApiUsd) * 100),
+              percentRemaining: 100 - (usage.api.costUsd / includedApiUsd) * 100,
               resetTimeIso: usage.window.resetTimeIso,
             },
       );

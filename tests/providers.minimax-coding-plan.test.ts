@@ -130,6 +130,31 @@ describe("minimax-coding-plan provider", () => {
     });
   });
 
+  it("preserves negative remaining percentages when MiniMax reports negative remaining quota", async () => {
+    mockMiniMaxAuthConfigured();
+    mockMiniMaxHttpSuccess([
+      createCodingPlanModel({
+        current_interval_usage_count: -50,
+        current_weekly_usage_count: -500,
+      }),
+    ]);
+
+    const out = await runProviderFetch();
+
+    expectAttemptedWithNoErrors(out);
+    expect(out.entries).toHaveLength(2);
+    expect(out.entries[0]).toMatchObject({
+      window: "five_hour",
+      right: "4550/4500",
+      percentRemaining: -1,
+    });
+    expect(out.entries[1]).toMatchObject({
+      window: "weekly",
+      right: "45500/45000",
+      percentRemaining: -1,
+    });
+  });
+
   it.each([
     {
       name: "returns empty entries when MiniMax coding-plan windows have zero totals",

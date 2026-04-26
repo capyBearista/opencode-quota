@@ -1,0 +1,33 @@
+/**
+ * Constants used for Google Gemini OAuth flows and Cloud Code Assist API integration.
+ */
+export const GEMINI_CLIENT_ID = "REDACTED_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com";
+
+/**
+ * Client secret issued for the Gemini CLI OAuth application.
+ */
+export const GEMINI_CLIENT_SECRET = "REDACTED_GOOGLE_OAUTH_CLIENT_SECRET";
+
+/**
+ * Scopes required for Gemini CLI integrations.
+ */
+export const GEMINI_SCOPES: readonly string[] = [
+  "https://www.googleapis.com/auth/cloud-platform",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
+];
+
+/**
+ * OAuth redirect URI used by the local CLI callback server.
+ */
+export const GEMINI_REDIRECT_URI = "http://localhost:8085/oauth2callback";
+
+/**
+ * Root endpoint for the Cloud Code Assist API which backs Gemini CLI traffic.
+ */
+export const GEMINI_CODE_ASSIST_ENDPOINT = "https://cloudcode-pa.googleapis.com";
+
+/**
+ * Provider identifier shared between the plugin loader and credential store.
+ */
+export const GEMINI_PROVIDER_ID = "google";

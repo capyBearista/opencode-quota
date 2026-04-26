@@ -89,6 +89,14 @@ async function seedReferenceRoot(repoRoot: string) {
             repo: "PoolPirate/opencode-cursor",
             version: "1.0.0",
           },
+          "opencode-gemini-auth": {
+            npmUrl: "https://www.npmjs.com/package/opencode-gemini-auth/v/1.0.0",
+            packageName: "opencode-gemini-auth",
+            publishedAt: "2026-03-01T00:00:00.000Z",
+            referenceDir: "references/upstream-plugins/opencode-gemini-auth",
+            repo: "jenslys/opencode-gemini-auth",
+            version: "1.0.0",
+          },
           "opencode-qwencode-auth": {
             npmUrl: "https://www.npmjs.com/package/opencode-qwencode-auth/v/1.0.0",
             packageName: "opencode-qwencode-auth",
@@ -108,6 +116,7 @@ async function seedReferenceRoot(repoRoot: string) {
   for (const pluginId of [
     "opencode-antigravity-auth",
     "opencode-cursor-oauth",
+    "opencode-gemini-auth",
     "opencode-qwencode-auth",
   ]) {
     const pluginDir = path.join(referenceRoot, pluginId);
@@ -152,6 +161,19 @@ describe("upstream-plugin-sync", () => {
         },
       ],
       [
+        "opencode-gemini-auth",
+        {
+          npmUrl: "https://www.npmjs.com/package/opencode-gemini-auth/v/2.0.0",
+          packageName: "opencode-gemini-auth",
+          pluginId: "opencode-gemini-auth",
+          publishedAt: "2026-03-20T00:00:00.000Z",
+          referenceDir: "references/upstream-plugins/opencode-gemini-auth",
+          repo: "jenslys/opencode-gemini-auth",
+          tarballUrl: "https://example.test/opencode-gemini-auth-2.0.0.tgz",
+          version: "2.0.0",
+        },
+      ],
+      [
         "opencode-qwencode-auth",
         {
           npmUrl: "https://www.npmjs.com/package/opencode-qwencode-auth/v/2.0.0",
@@ -179,7 +201,7 @@ describe("upstream-plugin-sync", () => {
     const result = await syncUpstreamPluginReferences();
     const referenceRoot = path.join(testState.repoRoot, "references", "upstream-plugins");
 
-    expect(result.syncedPlugins).toHaveLength(3);
+    expect(result.syncedPlugins).toHaveLength(4);
     await expect(readFile(path.join(referenceRoot, "README.md"), "utf8")).resolves.toBe("reference readme\n");
     await expect(readFile(path.join(referenceRoot, "stale-plugin", "package.json"), "utf8")).rejects.toThrow();
     await expect(
@@ -194,6 +216,9 @@ describe("upstream-plugin-sync", () => {
     await expect(readFile(path.join(referenceRoot, "opencode-cursor-oauth", "dist", "proxy.js"), "utf8")).resolves.toContain(
       "messages: normalizedMessages",
     );
+    await expect(
+      readFile(path.join(referenceRoot, "opencode-gemini-auth", "src", "constants.ts"), "utf8"),
+    ).resolves.toContain("REDACTED_GOOGLE_OAUTH_CLIENT_SECRET");
     await expect(readFile(path.join(referenceRoot, "lock.json"), "utf8")).resolves.toContain("\"version\": \"2.0.0\"");
     await expect(readFile(path.join(referenceRoot, "lock.json"), "utf8")).resolves.toContain(
       "\"packageName\": \"@playwo/opencode-cursor-oauth\"",

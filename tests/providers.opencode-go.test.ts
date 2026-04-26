@@ -165,13 +165,13 @@ describe("opencode-go provider", () => {
     expect(out.errors[0]?.message).toContain("network timeout");
   });
 
-  it("clamps usagePercent to [0, 100]", async () => {
+  it("lower-bounds usagePercent at 0 and allows over-100 usage values", async () => {
     mockConfigConfigured();
     mockDashboardSuccess(buildDashboardHtml(150, 100));
 
     const out = await runProviderFetch();
     expectAttemptedWithNoErrors(out);
-    expect(out.entries[0]).toMatchObject({ percentRemaining: 0 });
+    expect(out.entries[0]).toMatchObject({ percentRemaining: -50 });
   });
 
   it("sanitizes error text from dashboard responses", async () => {

@@ -8,6 +8,7 @@ export type CanonicalQuotaProviderId =
   | "synthetic"
   | "chutes"
   | "google-antigravity"
+  | "google-gemini-cli"
   | "zai"
   | "nanogpt"
   | "minimax-coding-plan"
@@ -49,6 +50,7 @@ export const QUOTA_PROVIDER_LABELS: Readonly<Record<string, string>> = {
   openai: "OpenAI",
   copilot: "Copilot",
   "google-antigravity": "Google",
+  "google-gemini-cli": "Gemini CLI",
   synthetic: "Synthetic",
   chutes: "Chutes",
   cursor: "Cursor",
@@ -79,6 +81,10 @@ export const QUOTA_PROVIDER_ID_SYNONYMS: Readonly<Record<string, string>> = {
   "kimi-for-code": "kimi-for-coding",
   "kimi-code": "kimi-for-coding",
   "opencode-go-subscription": "opencode-go",
+  "gemini-cli": "google-gemini-cli",
+  "google-gemini": "google-gemini-cli",
+  "opencode-gemini-auth": "google-gemini-cli",
+  gemini: "google-gemini-cli",
 };
 
 export const QUOTA_PROVIDER_RUNTIME_IDS: QuotaProviderRuntimeIds = {
@@ -91,6 +97,13 @@ export const QUOTA_PROVIDER_RUNTIME_IDS: QuotaProviderRuntimeIds = {
   synthetic: ["synthetic"],
   chutes: ["chutes", "chutes-ai"],
   "google-antigravity": ["google-antigravity", "google", "antigravity"],
+  "google-gemini-cli": [
+    "google-gemini-cli",
+    "gemini-cli",
+    "gemini",
+    "opencode-gemini-auth",
+    "google",
+  ],
   zai: ["zai", "glm", "zai-coding-plan"],
   nanogpt: ["nanogpt", "nano-gpt"],
   "minimax-coding-plan": ["minimax-coding-plan", "minimax"],
@@ -167,6 +180,13 @@ export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
     authentication: "companion_auth_oauth_token",
     quota: "remote_api",
     quickSetupAnchor: "google-antigravity-quick-setup",
+  },
+  {
+    id: "google-gemini-cli",
+    autoSetup: "needs_quick_setup",
+    authentication: "companion_auth_oauth_token",
+    quota: "remote_api",
+    quickSetupAnchor: "google-gemini-cli-quick-setup",
   },
   {
     id: "zai",

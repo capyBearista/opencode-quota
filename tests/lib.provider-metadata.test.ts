@@ -77,6 +77,13 @@ describe("provider-metadata", () => {
         quickSetupAnchor: "google-antigravity-quick-setup",
       },
       {
+        id: "google-gemini-cli",
+        autoSetup: "needs_quick_setup",
+        authentication: "companion_auth_oauth_token",
+        quota: "remote_api",
+        quickSetupAnchor: "google-gemini-cli-quick-setup",
+      },
+      {
         id: "zai",
         autoSetup: "yes",
         authentication: "opencode_auth_api_key",
@@ -145,6 +152,13 @@ describe("provider-metadata", () => {
       "google",
       "antigravity",
     ]);
+    expect(QUOTA_PROVIDER_RUNTIME_IDS["google-gemini-cli"]).toEqual([
+      "google-gemini-cli",
+      "gemini-cli",
+      "gemini",
+      "opencode-gemini-auth",
+      "google",
+    ]);
     expect(QUOTA_PROVIDER_RUNTIME_IDS.zai).toEqual(["zai", "glm", "zai-coding-plan"]);
     expect(QUOTA_PROVIDER_RUNTIME_IDS.nanogpt).toEqual(["nanogpt", "nano-gpt"]);
     expect(QUOTA_PROVIDER_RUNTIME_IDS["minimax-coding-plan"]).toEqual([
@@ -173,6 +187,13 @@ describe("provider-metadata", () => {
       "google",
       "antigravity",
     ]);
+    expect(getQuotaProviderRuntimeIds("gemini-cli")).toEqual([
+      "google-gemini-cli",
+      "gemini-cli",
+      "gemini",
+      "opencode-gemini-auth",
+      "google",
+    ]);
     expect(getQuotaProviderRuntimeIds("zai")).toEqual(["zai", "glm", "zai-coding-plan"]);
     expect(getQuotaProviderRuntimeIds("minimax")).toEqual(["minimax-coding-plan", "minimax"]);
     expect(getQuotaProviderRuntimeIds("kimi")).toEqual(["kimi-for-coding", "kimi", "kimi-code"]);
@@ -200,12 +221,20 @@ describe("provider-metadata", () => {
       quota: "local_estimation",
       quickSetupAnchor: "qwen-code-quick-setup",
     });
+    expect(getQuotaProviderShape("gemini-cli")).toEqual({
+      id: "google-gemini-cli",
+      autoSetup: "needs_quick_setup",
+      authentication: "companion_auth_oauth_token",
+      quota: "remote_api",
+      quickSetupAnchor: "google-gemini-cli-quick-setup",
+    });
     expect(getQuotaProviderShape("not-a-provider")).toBeUndefined();
   });
 
   it("returns display labels for known providers", () => {
     expect(getQuotaProviderDisplayLabel("anthropic")).toBe("Anthropic");
     expect(getQuotaProviderDisplayLabel("google-antigravity")).toBe("Google");
+    expect(getQuotaProviderDisplayLabel("gemini-cli")).toBe("Gemini CLI");
     expect(getQuotaProviderDisplayLabel("cursor")).toBe("Cursor");
     expect(getQuotaProviderDisplayLabel("alibaba-coding-plan")).toBe("Alibaba Coding Plan");
     expect(getQuotaProviderDisplayLabel("synthetic")).toBe("Synthetic");

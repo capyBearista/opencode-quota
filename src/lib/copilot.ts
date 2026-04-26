@@ -869,8 +869,9 @@ function computePercentRemainingFromUsed(params: { used: number; total: number }
   const { used, total } = params;
   if (!Number.isFinite(total) || total <= 0) return 0;
   if (!Number.isFinite(used) || used <= 0) return 100;
-  const remaining = Math.max(0, total - Math.max(0, used));
-  return Math.max(0, Math.min(100, Math.floor((remaining * 100) / total)));
+  const normalizedUsed = Math.max(0, used);
+  const remaining = total - normalizedUsed;
+  return Math.min(100, Math.floor((remaining * 100) / total));
 }
 
 function getPremiumUsageItems(

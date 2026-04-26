@@ -14,6 +14,12 @@ const RAW_UPSTREAM_PLUGIN_SPECS = [
     repoName: "opencode-cursor",
   },
   {
+    pluginId: "opencode-gemini-auth",
+    packageName: "opencode-gemini-auth",
+    repoOwner: "jenslys",
+    repoName: "opencode-gemini-auth",
+  },
+  {
     pluginId: "opencode-qwencode-auth",
     packageName: "opencode-qwencode-auth",
     repoOwner: "gustavodiasdev",

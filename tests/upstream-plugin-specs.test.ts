@@ -13,6 +13,7 @@ describe("upstream-plugin-specs", () => {
     expect(UPSTREAM_PLUGIN_SPECS.map((spec) => spec.pluginId)).toEqual([
       "opencode-antigravity-auth",
       "opencode-cursor-oauth",
+      "opencode-gemini-auth",
       "opencode-qwencode-auth",
     ]);
   });
@@ -27,6 +28,15 @@ describe("upstream-plugin-specs", () => {
     for (const spec of UPSTREAM_PLUGIN_SPECS) {
       expect(spec.referenceDir).toBe(`${UPSTREAM_PLUGIN_REFERENCE_ROOT}/${spec.pluginId}`);
     }
+  });
+
+  it("tracks the Gemini CLI auth companion package and repo", () => {
+    expect(getUpstreamPluginSpec("opencode-gemini-auth")).toMatchObject({
+      packageName: "opencode-gemini-auth",
+      pluginId: "opencode-gemini-auth",
+      referenceDir: `${UPSTREAM_PLUGIN_REFERENCE_ROOT}/opencode-gemini-auth`,
+      repo: "jenslys/opencode-gemini-auth",
+    });
   });
 
   it("keeps the cursor internal plugin id stable while pointing at the canonical package and repo", () => {

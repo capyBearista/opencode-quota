@@ -77,6 +77,23 @@ const SNAPSHOT_SANITIZERS = Object.freeze({
       ],
     },
   ]),
+  "opencode-gemini-auth": Object.freeze([
+    {
+      relativePath: "src/constants.ts",
+      replacements: [
+        {
+          label: "GEMINI_CLIENT_ID",
+          pattern: /(export const GEMINI_CLIENT_ID = )"[^"]+";/,
+          replacement: `$1"${REDACTED_GOOGLE_OAUTH_CLIENT_ID}";`,
+        },
+        {
+          label: "GEMINI_CLIENT_SECRET",
+          pattern: /(export const GEMINI_CLIENT_SECRET = )"[^"]+";/,
+          replacement: `$1"${REDACTED_GOOGLE_OAUTH_CLIENT_SECRET}";`,
+        },
+      ],
+    },
+  ]),
   "opencode-cursor-oauth": Object.freeze([
     {
       relativePath: "dist/models.js",

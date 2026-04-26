@@ -27,7 +27,7 @@ export type QuotaToastEntry =
       /** Display label (already human-friendly), e.g. "Copilot" or "Claude (abc..gmail)". */
       name: string;
 
-      /** Remaining quota as a percentage [0..100]. */
+      /** Remaining quota as a percentage (may be below 0 when over quota). */
       percentRemaining: number;
 
       /** Optional ISO reset timestamp (shown when percentRemaining is < 100). */

@@ -52,6 +52,7 @@ export type QuotaRenderSelection = {
 export type QuotaAvailability = {
   provider: QuotaProvider;
   ok: boolean;
+  error?: boolean;
 };
 
 async function getProviderAvailability(params: {
@@ -67,6 +68,7 @@ async function getProviderAvailability(params: {
     return {
       provider: params.provider,
       ok: false,
+      error: true,
     };
   }
 }
@@ -396,6 +398,7 @@ export async function collectQuotaRenderData(params: {
   request?: QuotaRequestContext;
   surfaceExplicitProviderIssues: boolean;
   formatStyle?: QuotaFormatStyle;
+  bypassProviderCache?: boolean;
 }): Promise<CollectQuotaRenderDataResult> {
   const selection = await resolveQuotaRenderSelection(params);
   if (!selection) {
@@ -467,6 +470,7 @@ export async function collectQuotaRenderData(params: {
     providers: active,
     ctx: selection.ctx,
     ttlMs: params.config.minIntervalMs,
+    bypassCache: params.bypassProviderCache,
   });
 
   const style = params.formatStyle ?? params.config.formatStyle;

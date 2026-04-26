@@ -6,6 +6,7 @@ Tracked packages:
 
 - `opencode-antigravity-auth`
 - `@playwo/opencode-cursor-oauth` (tracked internally under `references/upstream-plugins/opencode-cursor-oauth/`)
+- `opencode-gemini-auth`
 - `opencode-qwencode-auth`
 
 Refresh everything with:

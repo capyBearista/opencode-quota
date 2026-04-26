@@ -14,7 +14,7 @@ What you get:
 - popup quota toasts after assistant responses
 - manual `/quota`, `/quota_status`, and `/tokens_*` commands
 
-**Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, MiniMax Coding Plan, Kimi Code, Chutes AI, Synthetic, Google Antigravity, Z.ai Coding Plan, NanoGPT, and OpenCode Go.
+**Quota providers**: Anthropic (Claude), GitHub Copilot, OpenAI (Plus/Pro), Cursor, Qwen Code, Alibaba Coding Plan, MiniMax Coding Plan, Kimi Code, Chutes AI, Synthetic, Google Antigravity, Gemini CLI, Z.ai Coding Plan, NanoGPT, and OpenCode Go.
 
 **Token reports**: All models and providers in [models.dev](https://models.dev), plus deterministic local pricing for Cursor Auto/Composer and Cursor model aliases that are not on models.dev.
 
@@ -132,7 +132,7 @@ Keep the `tui.json` or `tui.jsonc` entry above and disable toasts in `opencode.j
 {
   "experimental": {
     "quotaToast": {
-      "enabledProviders": ["copilot", "openai", "google-antigravity"],
+      "enabledProviders": ["copilot", "openai", "google-gemini-cli"],
     },
   },
 }
@@ -183,6 +183,7 @@ Keep the `tui.json` or `tui.jsonc` entry above and disable toasts in `opencode.j
 | **Synthetic**           | Yes                                                  | OpenCode auth/global config/env | Remote API               |
 | **Chutes AI**           | Usually                                              | OpenCode auth/global config/env | Remote API               |
 | **Google Antigravity**  | Needs [quick setup](#google-antigravity-quick-setup) | Companion auth                  | Remote API               |
+| **Gemini CLI**          | Needs [quick setup](#google-gemini-cli-quick-setup)  | Companion auth                  | Remote API               |
 | **Z.ai**                | Yes                                                  | OpenCode auth/global config/env | Remote API               |
 | **NanoGPT**             | Usually                                              | OpenCode auth/global config/env | Remote API               |
 | **MiniMax Coding Plan** | Yes                                                  | OpenCode auth/global config/env | Remote API               |
@@ -262,6 +263,36 @@ Google quota support requires the `opencode-antigravity-auth` [plugin](https://g
 ```
 
 For behavior details and troubleshooting, see [Google Antigravity notes](#google-antigravity-notes).
+
+</details>
+
+<a id="google-gemini-cli-quick-setup"></a>
+
+<details>
+<summary><strong>Quick setup: Gemini CLI</strong></summary>
+
+Gemini CLI quota support requires the `opencode-gemini-auth` [plugin](https://github.com/jenslys/opencode-gemini-auth). `@slkiser/opencode-quota` reads that companion plugin's OAuth client constants and the OAuth token it stores in OpenCode auth; it does not install the companion plugin transitively.
+
+```jsonc
+{
+  "plugin": ["opencode-gemini-auth", "@slkiser/opencode-quota"],
+  "experimental": {
+    "quotaToast": {
+      "enabledProviders": ["google-gemini-cli"],
+    },
+  },
+}
+```
+
+Then authenticate once:
+
+```sh
+opencode auth login --provider google
+```
+
+If the companion did not store a project id in auth, set `provider.google.options.projectId`, `OPENCODE_GEMINI_PROJECT_ID`, `GOOGLE_CLOUD_PROJECT`, or `GOOGLE_CLOUD_PROJECT_ID`.
+
+For behavior details and troubleshooting, see [Gemini CLI notes](#google-gemini-cli-notes).
 
 </details>
 
@@ -605,6 +636,21 @@ See [Google Antigravity quick setup](#google-antigravity-quick-setup). This comp
 
 </details>
 
+<a id="google-gemini-cli-notes"></a>
+
+<details>
+<summary><strong>Gemini CLI</strong></summary>
+
+See [Gemini CLI quick setup](#google-gemini-cli-quick-setup). This integration is separate from Google Antigravity and uses `opencode-gemini-auth`, which stores OAuth under OpenCode's `google` auth provider.
+
+- Canonical provider id is `google-gemini-cli`. Aliases `gemini-cli`, `google-gemini`, `opencode-gemini-auth`, and `gemini` also normalize in `enabledProviders`.
+- `/quota`, toasts, and the sidebar query Gemini Code Assist quota buckets from the companion-authenticated Google account and project.
+- Gemini CLI quota buckets are grouped under `Gemini CLI`; in the default `singleWindow` style, the most constrained bucket is shown.
+- If no project id was stored during companion auth, set `provider.google.options.projectId` or one of the documented project env vars before running `/quota_status` or `/quota`.
+- `/quota_status` includes compact live probe rows for Gemini CLI when the provider is enabled and available.
+
+</details>
+
 <a id="nanogpt-notes"></a>
 
 <details>
@@ -683,7 +729,7 @@ If you previously relied on user/global quota config silently overriding workspa
 | `enabledProviders`            | `"auto"`  | Auto-detect providers, or set an explicit provider list.                                                                                                                                                     |
 | `minIntervalMs`               | `300000`  | Minimum fetch interval between provider updates.                                                                                                                                                             |
 | `formatStyle`                 | `singleWindow` | Shared quota-row style for popup toasts and the TUI sidebar: `singleWindow` (single window) or `allWindows` (all windows). Legacy `classic`/`grouped` aliases still work, and legacy `toastStyle` is still accepted on read for backward compatibility.       |
-| `percentDisplayMode`          | `remaining` | Shared percent meaning for popup toasts and the TUI sidebar: `remaining` renders labels like `81% left`, while `used` renders labels like `19% used`; the bar fill always matches the shown meaning.        |
+| `percentDisplayMode`          | `remaining` | Shared percent meaning for popup toasts and the TUI sidebar: `remaining` renders labels like `81% left`, while `used` renders labels like `19% used` (or `125% used` when over quota); the bar fill always matches the shown meaning.        |
 | `onlyCurrentModel`            | `false`   | Filter quota rows to the current model/provider when that session selection can be resolved.                                                                                                                 |
 | `showSessionTokens`           | `true`    | Show the `Session input/output tokens` section in quota displays when session token data is available. `allWindows` shows per-model rows on toast + sidebar, `singleWindow` shows a one-line total summary on both, and `/quota` keeps per-model rows. |
 | `pricingSnapshot.source`      | `"auto"`  | Token pricing snapshot selection for `/tokens_*`: `auto`, `bundled`, or `runtime`.                                                                                                                           |

@@ -11,6 +11,12 @@ import { DEFAULT_QUOTA_FORMAT_STYLE } from "./quota-format-style.js";
 
 /** Google model identifiers */
 export type GoogleModelId = "G3PRO" | "G3FLASH" | "CLAUDE" | "G3IMAGE";
+export type GeminiCliAuthSourceKey =
+  | "google-gemini-cli"
+  | "gemini-cli"
+  | "opencode-gemini-auth"
+  | "gemini"
+  | "google";
 export type CursorQuotaPlan = "none" | "pro" | "pro-plus" | "ultra";
 export type PricingSnapshotSource = "auto" | "bundled" | "runtime";
 export type PercentDisplayMode = "remaining" | "used";
@@ -179,6 +185,22 @@ export interface OpenAIOAuthData {
   [key: string]: unknown;
 }
 
+export interface GeminiCliOAuthAuthData {
+  type: string;
+  access?: string;
+  refresh?: string;
+  expires?: number;
+  projectId?: string;
+  /** Legacy spelling used by some companion/runtime variants */
+  projectID?: string;
+  managedProjectId?: string;
+  quotaProjectId?: string;
+  email?: string;
+  accountEmail?: string;
+  login?: string;
+  [key: string]: unknown;
+}
+
 export interface AlibabaAuthData {
   type: string;
   key?: string;
@@ -253,12 +275,13 @@ export interface AuthData {
   copilot?: CopilotAuthData;
   "copilot-chat"?: CopilotAuthData;
   "github-copilot-chat"?: CopilotAuthData;
-  google?: {
-    type: string;
-    access?: string;
-    refresh?: string;
-    expires?: number;
-  };
+  // Provider id used by opencode-gemini-auth.
+  google?: GeminiCliOAuthAuthData;
+  // Canonical and compatibility keys for Gemini CLI auth snapshots.
+  "google-gemini-cli"?: GeminiCliOAuthAuthData;
+  "gemini-cli"?: GeminiCliOAuthAuthData;
+  "opencode-gemini-auth"?: GeminiCliOAuthAuthData;
+  gemini?: GeminiCliOAuthAuthData;
   openai?: OpenAIOAuthData;
   // Some OpenCode installs store ChatGPT auth under "codex".
   codex?: OpenAIOAuthData;
@@ -468,6 +491,23 @@ export interface GoogleAccountError {
   error: string;
 }
 
+export interface GeminiCliQuotaBucket {
+  modelId: string;
+  displayName: string;
+  percentRemaining: number;
+  resetTimeIso?: string;
+  remainingAmount?: string;
+  tokenType?: string;
+  accountEmail?: string;
+  sourceKey?: GeminiCliAuthSourceKey;
+}
+
+export interface GeminiCliQuotaResult {
+  success: true;
+  buckets: GeminiCliQuotaBucket[];
+  errors?: GoogleAccountError[];
+}
+
 /** Result from fetching Google quota */
 export interface GoogleQuotaResult {
   success: true;
@@ -489,6 +529,7 @@ export type CopilotResult =
   | QuotaError
   | null;
 export type GoogleResult = GoogleQuotaResult | QuotaError | null;
+export type GeminiCliResult = GeminiCliQuotaResult | QuotaError | null;
 export type ZaiResult = ZaiQuotaResult | QuotaError | null;
 /** Single entry in a MiniMax quota result */
 export interface MiniMaxResultEntry {

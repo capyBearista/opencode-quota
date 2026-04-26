@@ -63,6 +63,27 @@ describe("cursor provider", () => {
     expect(out.presentation).toBeUndefined();
   });
 
+  it("preserves negative remaining percent when Cursor API spend exceeds the included budget", async () => {
+    const { getCurrentCursorUsageSummary } = await import("../src/lib/cursor-usage.js");
+    (getCurrentCursorUsageSummary as any).mockResolvedValue({
+      window: { resetTimeIso: "2026-03-01T00:00:00.000Z" },
+      api: { costUsd: 25, tokens: {}, messageCount: 2 },
+      autoComposer: { costUsd: 0, tokens: {}, messageCount: 0 },
+      total: { costUsd: 25, tokens: {}, messageCount: 2 },
+      unknownModels: [],
+    });
+
+    const out = await cursorProvider.fetch({
+      config: { cursorPlan: "pro" },
+    } as any);
+
+    expectAttemptedWithNoErrors(out);
+    expect(out.entries[0]).toMatchObject({
+      right: "$25.00/$20.00",
+      percentRemaining: -25,
+    });
+  });
+
   it("renders a canonical total-usage value row first when no included api budget is configured", async () => {
     const { getCurrentCursorUsageSummary } = await import("../src/lib/cursor-usage.js");
     (getCurrentCursorUsageSummary as any).mockResolvedValue({
