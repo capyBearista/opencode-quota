@@ -2,26 +2,15 @@
  * Google Antigravity provider wrapper.
  */
 
-import type {
-  QuotaProvider,
-  QuotaProviderContext,
-  QuotaProviderResult,
-  QuotaToastError,
-} from "../lib/entries.js";
-import type { GoogleModelId, GoogleResult } from "../lib/types.js";
+import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "../lib/entries.js";
+import type { GoogleModelId } from "../lib/types.js";
 import { hasAntigravityQuotaRuntimeAvailable, queryGoogleQuota } from "../lib/google.js";
-import { notAttemptedResult } from "./result-helpers.js";
-
-function truncateEmail(email?: string): string {
-  if (!email) return "Unknown";
-  const prefix = email.slice(0, 3);
-  return `${prefix}..gmail`;
-}
-
-function normalizeGoogleErrors(result: GoogleResult): QuotaToastError[] {
-  if (!result || !result.success || !result.errors || result.errors.length === 0) return [];
-  return result.errors.map((e) => ({ label: truncateEmail(e.email), message: e.error }));
-}
+import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
+import {
+  formatGoogleAccountErrors,
+  formatGoogleAccountLabel,
+} from "./google-account-format.js";
+import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 async function isAccountsConfigured(): Promise<boolean> {
   try {
@@ -41,13 +30,7 @@ export const googleAntigravityProvider: QuotaProvider = {
   },
 
   matchesCurrentModel(model: string): boolean {
-    const provider = model.split("/")[0]?.toLowerCase();
-    if (!provider) return false;
-    return (
-      provider.includes("google") ||
-      provider.includes("antigravity") ||
-      provider.includes("opencode")
-    );
+    return modelProviderIncludesAny(model, ["google", "antigravity", "opencode"]);
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
@@ -59,15 +42,11 @@ export const googleAntigravityProvider: QuotaProvider = {
     }
 
     if (!result.success) {
-      return {
-        attempted: true,
-        entries: [],
-        errors: [{ label: "Antigravity", message: result.error }],
-      };
+      return attemptedErrorResult("Antigravity", result.error);
     }
 
     const entries = result.models.map((m) => {
-      const emailLabel = truncateEmail(m.accountEmail) || "Antigravity";
+      const emailLabel = formatGoogleAccountLabel(m.accountEmail, "fixedGmailHint") || "Antigravity";
       return {
         name: `${m.displayName} (${emailLabel})`,
         percentRemaining: m.percentRemaining,
@@ -75,10 +54,9 @@ export const googleAntigravityProvider: QuotaProvider = {
       };
     });
 
-    return {
-      attempted: true,
+    return attemptedResult(
       entries,
-      errors: normalizeGoogleErrors(result),
-    };
+      formatGoogleAccountErrors(result.errors, "fixedGmailHint"),
+    );
   },
 };

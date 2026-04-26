@@ -9,6 +9,7 @@ import type {
   QuotaToastEntry,
 } from "../lib/entries.js";
 import { formatNanoGptBalanceValue, hasNanoGptApiKeyConfigured, queryNanoGptQuota } from "../lib/nanogpt.js";
+import { modelProviderMatchesRuntimeId } from "../lib/provider-model-matching.js";
 import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 function formatUsageAmount(value: number): string {
@@ -29,8 +30,7 @@ export const nanoGptProvider: QuotaProvider = {
   },
 
   matchesCurrentModel(model: string): boolean {
-    const provider = model.split("/")[0]?.toLowerCase();
-    return provider === "nanogpt" || provider === "nano-gpt";
+    return modelProviderMatchesRuntimeId(model, "nanogpt");
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {

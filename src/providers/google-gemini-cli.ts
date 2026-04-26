@@ -1,32 +1,18 @@
-import type {
-  QuotaProvider,
-  QuotaProviderContext,
-  QuotaProviderResult,
-  QuotaToastError,
-} from "../lib/entries.js";
-import type { GeminiCliResult } from "../lib/types.js";
+import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "../lib/entries.js";
 import { hasGeminiCliQuotaRuntimeAvailable, queryGeminiCliQuota } from "../lib/google-gemini-cli.js";
-import { notAttemptedResult } from "./result-helpers.js";
-
-function truncateEmail(email?: string): string {
-  if (!email) return "Unknown";
-  const [local = email] = email.split("@");
-  const prefix = local.slice(0, 3) || email.slice(0, 3);
-  const domainHint = email.includes("@") ? email.split("@")[1]?.split(".")[0] : undefined;
-  return domainHint ? `${prefix}..${domainHint}` : `${prefix}..`;
-}
-
-function normalizeGeminiCliErrors(result: GeminiCliResult): QuotaToastError[] {
-  if (!result || !result.success || !result.errors || result.errors.length === 0) return [];
-  return result.errors.map((e) => ({ label: truncateEmail(e.email), message: e.error }));
-}
+import { parseProviderModelRef } from "../lib/provider-model-matching.js";
+import {
+  formatGoogleAccountErrors,
+  formatGoogleAccountLabel,
+} from "./google-account-format.js";
+import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 function isGeminiCliModel(model: string): boolean {
-  const [provider = "", modelId = ""] = model.toLowerCase().split("/", 2);
-  if (["google-gemini-cli", "gemini-cli", "gemini", "opencode-gemini-auth"].includes(provider)) {
+  const { providerId, modelId } = parseProviderModelRef(model);
+  if (["google-gemini-cli", "gemini-cli", "gemini", "opencode-gemini-auth"].includes(providerId)) {
     return true;
   }
-  return provider === "google" && modelId.includes("gemini");
+  return providerId === "google" && modelId.includes("gemini");
 }
 
 async function isGeminiCliConfigured(ctx: QuotaProviderContext): Promise<boolean> {
@@ -56,15 +42,11 @@ export const googleGeminiCliProvider: QuotaProvider = {
     }
 
     if (!result.success) {
-      return {
-        attempted: true,
-        entries: [],
-        errors: [{ label: "Gemini CLI", message: result.error }],
-      };
+      return attemptedErrorResult("Gemini CLI", result.error);
     }
 
     const entries = result.buckets.map((bucket) => {
-      const emailLabel = truncateEmail(bucket.accountEmail);
+      const emailLabel = formatGoogleAccountLabel(bucket.accountEmail, "domainHint");
       const parsedRemaining = bucket.remainingAmount
         ? Number.parseInt(bucket.remainingAmount, 10)
         : Number.NaN;
@@ -86,14 +68,9 @@ export const googleGeminiCliProvider: QuotaProvider = {
       };
     });
 
-    return {
-      attempted: true,
-      entries,
-      errors: normalizeGeminiCliErrors(result),
-      presentation: {
-        singleWindowDisplayName: "Gemini CLI",
-        singleWindowShowRight: true,
-      },
-    };
+    return attemptedResult(entries, formatGoogleAccountErrors(result.errors, "domainHint"), {
+      singleWindowDisplayName: "Gemini CLI",
+      singleWindowShowRight: true,
+    });
   },
 };

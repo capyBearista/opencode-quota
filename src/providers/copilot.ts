@@ -7,8 +7,12 @@
 import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "../lib/entries.js";
 import { queryCopilotQuota } from "../lib/copilot.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
+import {
+  modelIncludesAny,
+  modelProviderIncludesAny,
+} from "../lib/provider-model-matching.js";
 import type { CopilotEnterpriseUsageResult, CopilotOrganizationUsageResult } from "../lib/types.js";
-import { attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 function formatBillingPeriod(period: { year: number; month: number }): string {
   return `${period.year}-${String(period.month).padStart(2, "0")}`;
@@ -46,15 +50,13 @@ export const copilotProvider: QuotaProvider = {
   },
 
   matchesCurrentModel(model: string): boolean {
-    const lower = model.toLowerCase();
     // Check provider prefix (part before "/")
-    const provider = lower.split("/")[0];
-    if (provider && (provider.includes("copilot") || provider.includes("github"))) {
+    if (modelProviderIncludesAny(model, ["copilot", "github"])) {
       return true;
     }
     // Also match if the full model string contains "copilot" or "github-copilot"
     // to handle models like "github-copilot/claude-sonnet-4.5"
-    return lower.includes("copilot") || lower.includes("github-copilot");
+    return modelIncludesAny(model, ["copilot", "github-copilot"]);
   },
 
   async fetch(_ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
@@ -65,11 +67,7 @@ export const copilotProvider: QuotaProvider = {
     }
 
     if (!result.success) {
-      return {
-        attempted: true,
-        entries: [],
-        errors: [{ label: "Copilot", message: result.error }],
-      };
+      return attemptedErrorResult("Copilot", result.error);
     }
 
     if (result.mode === "organization_usage" || result.mode === "enterprise_usage") {

@@ -14,6 +14,7 @@ import {
   querySyntheticQuota,
 } from "../lib/synthetic.js";
 import type { SyntheticQuotaWindow } from "../lib/types.js";
+import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
 import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 function formatSyntheticRoundedValue(value: number): string {
@@ -60,9 +61,7 @@ export const syntheticProvider: QuotaProvider = {
   },
 
   matchesCurrentModel(model: string): boolean {
-    const provider = model.split("/")[0]?.toLowerCase();
-    if (!provider) return false;
-    return provider.includes("synthetic");
+    return modelProviderIncludesAny(model, ["synthetic"]);
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {

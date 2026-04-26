@@ -14,6 +14,7 @@ import {
   queryOpenAIQuota,
 } from "../lib/openai.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
+import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
 import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 export const openaiProvider: QuotaProvider = {
@@ -35,11 +36,7 @@ export const openaiProvider: QuotaProvider = {
   },
 
   matchesCurrentModel(model: string): boolean {
-    const provider = model.split("/")[0]?.toLowerCase();
-    if (!provider) return false;
-    return (
-      provider.includes("openai") || provider.includes("chatgpt") || provider.includes("codex")
-    );
+    return modelProviderIncludesAny(model, ["openai", "chatgpt", "codex"]);
   },
 
   async fetch(_ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
