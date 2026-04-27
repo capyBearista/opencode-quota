@@ -77,7 +77,7 @@ body:
     id: logs
     attributes:
       label: Relevant logs/output
-      description: Required: paste `/quota_status` output (add test output if helpful).
+      description: "Required: paste `/quota_status` output (add test output if helpful)."
       render: shell
     validations:
       required: true
