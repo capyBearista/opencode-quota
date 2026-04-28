@@ -3,8 +3,6 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { getOpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
-
 const require = createRequire(import.meta.url);
 
 const COMPANION_PACKAGE_NAME = "opencode-gemini-auth";
@@ -76,18 +74,6 @@ function isModuleNotFoundError(error: unknown): boolean {
   return message.includes("Cannot find module");
 }
 
-function resolveModule(specifier: string): string {
-  try {
-    return require.resolve(specifier);
-  } catch (error) {
-    if (isModuleNotFoundError(error)) {
-      const cacheDir = getOpencodeRuntimeDirs().cacheDir;
-      return require.resolve(specifier, { paths: [cacheDir] });
-    }
-    throw error;
-  }
-}
-
 function normalizeCredential(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -129,14 +115,11 @@ function buildInvalidState(importSpecifier: string, resolvedPath?: string): Reso
   };
 }
 
-function parseSourceCredentials(
-  content: string,
-): { clientId: string; clientSecret: string } | null {
+function parseSourceCredentials(content: string): { clientId: string; clientSecret: string } | null {
   const clientId =
     content.match(/export\s+const\s+GEMINI_CLIENT_ID\s*=\s*["']([^"']+)["']/)?.[1]?.trim() ?? "";
   const clientSecret =
-    content.match(/export\s+const\s+GEMINI_CLIENT_SECRET\s*=\s*["']([^"']+)["']/)?.[1]?.trim() ??
-    "";
+    content.match(/export\s+const\s+GEMINI_CLIENT_SECRET\s*=\s*["']([^"']+)["']/)?.[1]?.trim() ?? "";
 
   return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
@@ -146,7 +129,7 @@ async function tryResolveJsConstants(
 ): Promise<ResolvedCompanionState | null> {
   let resolvedPath: string;
   try {
-    resolvedPath = resolveModule(importSpecifier);
+    resolvedPath = require.resolve(importSpecifier);
   } catch (error) {
     if (isModuleNotFoundError(error)) {
       return null;
@@ -173,14 +156,14 @@ async function tryResolveJsConstants(
 async function tryResolveSourceConstants(): Promise<ResolvedCompanionState | null> {
   let resolvedPath: string;
   try {
-    resolvedPath = resolveModule(COMPANION_SOURCE_IMPORT_SPECIFIER);
+    resolvedPath = require.resolve(COMPANION_SOURCE_IMPORT_SPECIFIER);
   } catch (error) {
     if (!isModuleNotFoundError(error)) {
       return buildInvalidState(COMPANION_SOURCE_IMPORT_SPECIFIER);
     }
 
     try {
-      const packageJsonPath = resolveModule(COMPANION_PACKAGE_JSON_SPECIFIER);
+      const packageJsonPath = require.resolve(COMPANION_PACKAGE_JSON_SPECIFIER);
       resolvedPath = join(dirname(packageJsonPath), "src", "constants.ts");
     } catch (packageError) {
       return isModuleNotFoundError(packageError)

@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  expectAttemptedWithErrorLabel,
-  expectNotAttempted,
-} from "./helpers/provider-assertions.js";
+import { expectAttemptedWithErrorLabel, expectNotAttempted } from "./helpers/provider-assertions.js";
 import { googleGeminiCliProvider } from "../src/providers/google-gemini-cli.js";
 
 vi.mock("../src/lib/google-gemini-cli.js", () => ({
@@ -27,7 +24,7 @@ describe("google gemini cli provider", () => {
       buckets: [
         {
           modelId: "gemini-2.5-pro",
-          displayName: "Gemini 2.5 Pro",
+          displayName: "Gemini Pro",
           accountEmail: "alice@example.com",
           percentRemaining: 64,
           resetTimeIso: "2026-01-01T00:00:00.000Z",
@@ -42,9 +39,9 @@ describe("google gemini cli provider", () => {
     expect(out.attempted).toBe(true);
     expect(out.entries).toEqual([
       {
-        name: "Pro (ali..example)",
+        name: "Gemini Pro (ali..example)",
         group: "Gemini CLI",
-        label: "Pro",
+        label: "Gemini Pro:",
         right: "1,234 left",
         percentRemaining: 64,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
@@ -57,36 +54,36 @@ describe("google gemini cli provider", () => {
     });
   });
 
-  it("aggregates buckets by quality tier and picks the bottleneck", async () => {
+  it("maps aggregated Gemini quality tiers without changing provider presentation", async () => {
     const { queryGeminiCliQuota } = await import("../src/lib/google-gemini-cli.js");
     (queryGeminiCliQuota as any).mockResolvedValueOnce({
       success: true,
       buckets: [
         {
-          modelId: "gemini-3.1-pro-preview",
-          displayName: "Gemini 3.1 Pro Preview",
-          accountEmail: "alice@example.com",
-          percentRemaining: 80,
-          resetTimeIso: "2026-01-01T10:00:00Z",
-          remainingAmount: "100",
-          tokenType: "REQUESTS",
-        },
-        {
           modelId: "gemini-2.5-pro",
-          displayName: "Gemini 2.5 Pro",
+          displayName: "Gemini Pro",
           accountEmail: "alice@example.com",
-          percentRemaining: 20, // Bottleneck!
-          resetTimeIso: "2026-01-01T12:00:00Z", // Furthest reset time!
+          percentRemaining: 20,
+          resetTimeIso: "2026-01-01T12:00:00Z",
           remainingAmount: "50",
           tokenType: "TOKENS",
         },
         {
           modelId: "gemini-2.5-flash",
-          displayName: "Gemini 2.5 Flash",
+          displayName: "Gemini Flash",
           accountEmail: "alice@example.com",
           percentRemaining: 50,
           resetTimeIso: "2026-01-01T08:00:00Z",
           remainingAmount: "1000",
+          tokenType: "REQUESTS",
+        },
+        {
+          modelId: "gemini-2.5-flash-lite",
+          displayName: "Gemini Flash Lite",
+          accountEmail: "alice@example.com",
+          percentRemaining: 10,
+          resetTimeIso: "2026-01-01T06:00:00Z",
+          remainingAmount: "25",
           tokenType: "REQUESTS",
         },
       ],
@@ -95,22 +92,34 @@ describe("google gemini cli provider", () => {
     const out = await googleGeminiCliProvider.fetch({ client: {} } as any);
     expect(out.entries).toEqual([
       {
-        name: "Pro (ali..example)",
+        name: "Gemini Pro (ali..example)",
         group: "Gemini CLI",
-        label: "Pro",
+        label: "Gemini Pro:",
         right: "50 left TOKENS",
         percentRemaining: 20,
         resetTimeIso: "2026-01-01T12:00:00Z",
       },
       {
-        name: "Flash (ali..example)",
+        name: "Gemini Flash (ali..example)",
         group: "Gemini CLI",
-        label: "Flash",
+        label: "Gemini Flash:",
         right: "1,000 left",
         percentRemaining: 50,
         resetTimeIso: "2026-01-01T08:00:00Z",
       },
+      {
+        name: "Gemini Flash Lite (ali..example)",
+        group: "Gemini CLI",
+        label: "Gemini Flash Lite:",
+        right: "25 left",
+        percentRemaining: 10,
+        resetTimeIso: "2026-01-01T06:00:00Z",
+      },
     ]);
+    expect(out.presentation).toEqual({
+      singleWindowDisplayName: "Gemini CLI",
+      singleWindowShowRight: true,
+    });
   });
 
   it("maps fetch failures into toast errors", async () => {

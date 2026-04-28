@@ -1,8 +1,6 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-import { getOpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
-
 const require = createRequire(import.meta.url);
 
 const COMPANION_PACKAGE_NAME = "opencode-antigravity-auth";
@@ -69,23 +67,11 @@ function isModuleNotFoundError(error: unknown): boolean {
   return message.includes("Cannot find module");
 }
 
-function resolveModule(specifier: string): string {
-  try {
-    return require.resolve(specifier);
-  } catch (error) {
-    if (isModuleNotFoundError(error)) {
-      const cacheDir = getOpencodeRuntimeDirs().cacheDir;
-      return require.resolve(specifier, { paths: [cacheDir] });
-    }
-    throw error;
-  }
-}
-
 async function resolveCompanionState(): Promise<ResolvedCompanionState> {
   let resolvedPath: string;
 
   try {
-    resolvedPath = resolveModule(COMPANION_IMPORT_SPECIFIER);
+    resolvedPath = require.resolve(COMPANION_IMPORT_SPECIFIER);
   } catch (error) {
     if (isModuleNotFoundError(error)) {
       return {

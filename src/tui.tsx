@@ -14,7 +14,10 @@ const id = "@slkiser/opencode-quota";
 const SIDEBAR_ORDER = 150;
 const REFRESH_INTERVAL_MS = 60_000;
 
-function SidebarContentView(props: { api: TuiPluginApi; sessionID: string }) {
+function SidebarContentView(props: {
+  api: TuiPluginApi;
+  sessionID: string;
+}) {
   const [panel, setPanel] = createSignal<SidebarPanelState>({
     status: "loading",
     lines: [],
